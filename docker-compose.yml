@@ -1,0 +1,183 @@
+services:
+  spark-master:
+    container_name: spark-master
+    build: spark/
+    command: master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_MASTER_HOST=spark-master
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - SPARK_PUBLIC_DNS=localhost
+    ports:
+      - "7077:7077"       # Spark master port
+      - "8080:8080"       # Spark Master UI
+      - "18080:18080"   # History server UI
+    networks:
+      spark-net:
+    volumes:
+      - spark-events:/home/iceberg/spark-events
+    deploy:
+      resources:
+        limits:
+          cpus: 1
+          memory: 512m
+
+
+  spark-worker-one:
+    build: spark/
+    command: worker
+    container_name: spark-worker-one
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_WORKER_MEMORY=3G
+      - SPARK_WORKER_CORES=3
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - SPARK_PUBLIC_DNS=localhost
+    depends_on:
+      - spark-master
+    ports:
+      - "8081:8081" # Spark Worker UI
+    networks:
+      spark-net:
+    volumes:
+      - spark-events:/home/iceberg/spark-events
+      - ./data:/home/iceberg/data
+
+  spark-worker-two:
+    build: spark/
+    command: worker
+    container_name: spark-worker-two
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_WORKER_MEMORY=3G
+      - SPARK_WORKER_CORES=3
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - SPARK_PUBLIC_DNS=localhost
+    depends_on:
+      - spark-master
+    ports:
+      - "8082:8081" # Spark Worker UI
+    networks:
+      spark-net:
+    volumes:
+      - spark-events:/home/iceberg/spark-events
+      - ./data:/home/iceberg/data
+
+  spark-driver:
+    build: spark/
+    command: driver
+    container_name: spark-driver
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - SPARK_MODE=driver
+      - SPARK_DRIVER_HOST=spark-notebook
+      - SPARK_DRIVER_MEMORY=1G
+      - SPARK_DRIVER_CORES=1
+      - SPARK_EXECUTOR_MEMORY=500m
+      - SPARK_EXECUTOR_CORES=2
+      - SPARK_EXECUTOR_INSTANCES=4
+      - SPARK_PUBLIC_DNS=localhost
+      - PYSPARK_DRIVER_PYTHON=jupyter-notebook
+      - PYSPARK_DRIVER_PYTHON_OPTS=--ip=0.0.0.0 --NotebookApp.token='' --NotebookApp.password='' --port=8888 --no-browser --allow-root
+    depends_on:
+      - spark-master
+      - spark-worker-one
+      - spark-worker-two
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+    networks:
+      spark-net:
+    volumes:
+      - spark-events:/home/iceberg/spark-events
+      - ./notebooks:/home/iceberg/notebooks
+      - ./data:/home/iceberg/data
+    deploy:
+      resources:
+        limits:
+          cpus: 1
+          memory: 1G
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+      - MINIO_DOMAIN=minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      spark-net:
+        aliases:
+          - warehouse.minio
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    deploy:
+      resources:
+        limits:
+          cpus: 1
+          memory: 1G
+
+  # mc:
+  #   image: minio/mc
+  #   depends_on:
+  #     - minio
+  #   environment:
+  #     - AWS_ACCESS_KEY_ID=admin
+  #     - AWS_SECRET_ACCESS_KEY=password
+  #   networks:
+  #     spark-net:
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #     sleep 5 &&
+  #     mc alias set local http://minio:9000 admin password;
+  #     mc mb --ignore-existing local/warehouse;
+  #     # mc anonymous set public local/warehouse;
+  #     exit 0;
+  #     "
+  #   restart: "no"
+
+  iceberg-rest:
+    image: tabulario/iceberg-rest
+    container_name: iceberg-rest
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - CATALOG_WAREHOUSE=s3://warehouse/
+      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
+      - CATALOG_S3_ENDPOINT=http://minio:9000
+    ports:
+      - "8181:8181"
+    networks:
+      spark-net:
+    depends_on:
+      - minio
+    deploy:
+      resources:
+        limits:
+          cpus: 1
+          memory: 1G
+
+volumes:
+  minio-data:
+  spark-events:
+
+networks:
+  spark-net:
+    driver: bridge

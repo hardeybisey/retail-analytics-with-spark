@@ -1,0 +1,2 @@
+pyiceberg[pyarrow,duckdb,pandas]==0.9.1
+jupyter==1.1.1

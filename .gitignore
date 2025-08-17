@@ -28,6 +28,7 @@ var/
 *.log
 
 # Virtual environments
+.env
 venv/
 ENV/
 env/

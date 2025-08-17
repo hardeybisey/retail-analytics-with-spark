@@ -5,21 +5,23 @@ services:
     command: master
     environment:
       - SPARK_MODE=master
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
+      - SPARK_SSL_ENABLED=no
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
       - SPARK_MASTER_HOST=spark-master
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - SPARK_PUBLIC_DNS=localhost
     ports:
       - "7077:7077"       # Spark master port
       - "8080:8080"       # Spark Master UI
       - "18080:18080"   # History server UI
     networks:
       spark-net:
+    depends_on:
+      - minio
     volumes:
       - spark-events:/home/iceberg/spark-events
     deploy:
@@ -35,12 +37,12 @@ services:
     container_name: spark-worker-one
     environment:
       - SPARK_MODE=worker
-      - SPARK_WORKER_MEMORY=3G
-      - SPARK_WORKER_CORES=3
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - SPARK_PUBLIC_DNS=localhost
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
     depends_on:
       - spark-master
     ports:
@@ -49,7 +51,6 @@ services:
       spark-net:
     volumes:
       - spark-events:/home/iceberg/spark-events
-      - ./data:/home/iceberg/data
 
   spark-worker-two:
     build: spark/
@@ -57,12 +58,12 @@ services:
     container_name: spark-worker-two
     environment:
       - SPARK_MODE=worker
-      - SPARK_WORKER_MEMORY=3G
-      - SPARK_WORKER_CORES=3
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - SPARK_PUBLIC_DNS=localhost
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
     depends_on:
       - spark-master
     ports:
@@ -71,26 +72,25 @@ services:
       spark-net:
     volumes:
       - spark-events:/home/iceberg/spark-events
-      - ./data:/home/iceberg/data
 
   spark-driver:
     build: spark/
     command: driver
     container_name: spark-driver
     environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
       - SPARK_MODE=driver
-      - SPARK_DRIVER_HOST=spark-notebook
-      - SPARK_DRIVER_MEMORY=1G
-      - SPARK_DRIVER_CORES=1
-      - SPARK_EXECUTOR_MEMORY=500m
-      - SPARK_EXECUTOR_CORES=2
-      - SPARK_EXECUTOR_INSTANCES=4
-      - SPARK_PUBLIC_DNS=localhost
+      - SPARK_DRIVER_HOST=spark-driver
+      - SPARK_DRIVER_MEMORY=${SPARK_DRIVER_MEMORY}
+      - SPARK_DRIVER_CORES=${SPARK_DRIVER_CORES}
+      - SPARK_EXECUTOR_MEMORY=${SPARK_EXECUTOR_MEMORY}
+      - SPARK_EXECUTOR_CORES=${SPARK_EXECUTOR_CORES}
+      - SPARK_EXECUTOR_INSTANCES=${SPARK_EXECUTOR_INSTANCES}
+      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
       - PYSPARK_DRIVER_PYTHON=jupyter-notebook
-      - PYSPARK_DRIVER_PYTHON_OPTS=--ip=0.0.0.0 --NotebookApp.token='' --NotebookApp.password='' --port=8888 --no-browser --allow-root
+      - PYSPARK_DRIVER_PYTHON_OPTS=--ip=0.0.0.0 --NotebookApp.token='' --NotebookApp.${AWS_SECRET_ACCESS_KEY}='' --port=8888 --no-browser --allow-root
     depends_on:
       - spark-master
       - spark-worker-one
@@ -102,8 +102,6 @@ services:
       spark-net:
     volumes:
       - spark-events:/home/iceberg/spark-events
-      - ./notebooks:/home/iceberg/notebooks
-      - ./data:/home/iceberg/data
     deploy:
       resources:
         limits:
@@ -114,9 +112,9 @@ services:
     image: minio/minio
     container_name: minio
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_DOMAIN=${MINIO_DOMAIN}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -131,35 +129,39 @@ services:
       resources:
         limits:
           cpus: 1
-          memory: 1G
+          memory: 2G
 
-  # mc:
-  #   image: minio/mc
-  #   depends_on:
-  #     - minio
-  #   environment:
-  #     - AWS_ACCESS_KEY_ID=admin
-  #     - AWS_SECRET_ACCESS_KEY=password
-  #   networks:
-  #     spark-net:
-  #   entrypoint: >
-  #     /bin/sh -c "
-  #     sleep 5 &&
-  #     mc alias set local http://minio:9000 admin password;
-  #     mc mb --ignore-existing local/warehouse;
-  #     # mc anonymous set public local/warehouse;
-  #     exit 0;
-  #     "
-  #   restart: "no"
+  mc:
+    image: minio/mc
+    depends_on:
+      - minio
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+    networks:
+      spark-net:
+    volumes:
+      - ./csv_input:/tmp/data
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5 &&
+      mc alias set local http://minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY};
+      mc mb --ignore-existing local/${S3_LOGS_BUCKET};
+      mc mb --ignore-existing local/${S3_INPUTS_BUCKET};
+      mc mb --ignore-existing local/${S3_WH_BUCKET};
+      mc cp --recursive /tmp/data/*.csv local/${S3_INPUTS_BUCKET}/;
+      exit 0;
+      "
+    restart: "no"
 
   iceberg-rest:
     image: tabulario/iceberg-rest
     container_name: iceberg-rest
     environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - CATALOG_WAREHOUSE=s3://warehouse/
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - CATALOG_WAREHOUSE=s3://${S3_WH_BUCKET}/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://minio:9000
     ports:

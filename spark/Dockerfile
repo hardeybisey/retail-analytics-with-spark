@@ -64,7 +64,7 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
  && rm awscliv2.zip \
  && rm -rf aws/
 
-RUN mkdir -p /home/iceberg/{data,notebooks,spark-events}
+RUN mkdir -p /home/iceberg/spark-events
 
 COPY spark-defaults.conf /opt/spark/conf
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"

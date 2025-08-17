@@ -1,6 +1,0 @@
-catalog:
-    default:
-        uri: http://rest:8181               # URL of the Iceberg REST catalog service
-        s3.endpoint: http://minio:9000     # S3-compatible endpoint (MinIO here)
-        s3.access-key-id: admin             # S3 access key
-        s3.secret-access-key: password      # S3 secret key

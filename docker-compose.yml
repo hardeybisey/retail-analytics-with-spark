@@ -1,4 +1,13 @@
 services:
+  # data-gen:
+  #   image: iadebisi/ecommerce-data-generator
+  #   command: >
+  #     --customers 20000
+  #     --sellers 2000
+  #     --orders 2000000
+  #   volumes:
+  #       - ./csv_input:/data
+
   spark-master:
     container_name: spark-master
     build: spark/
@@ -13,13 +22,14 @@ services:
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_HOST=0.0.0.0
     ports:
       - "7077:7077"       # Spark master port
-      - "8080:8080"       # Spark Master UI
+      - "8081:8080"       # Spark Master UI
       - "18080:18080"   # History server UI
     networks:
       spark-net:
+      shared-network:
     depends_on:
       - minio
     volumes:
@@ -37,18 +47,19 @@ services:
     container_name: spark-worker-one
     environment:
       - SPARK_MODE=worker
-      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
-      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
       - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
     depends_on:
       - spark-master
     ports:
-      - "8081:8081" # Spark Worker UI
+      - "8082:8081" # Spark Worker UI
     networks:
       spark-net:
+      shared-network:
     volumes:
       - spark-events:/home/iceberg/spark-events
 
@@ -58,39 +69,33 @@ services:
     container_name: spark-worker-two
     environment:
       - SPARK_MODE=worker
-      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
-      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
+      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
+      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
       - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
     depends_on:
       - spark-master
     ports:
-      - "8082:8081" # Spark Worker UI
+      - "8083:8081" # Spark Worker UI
     networks:
       spark-net:
+      shared-network:
     volumes:
       - spark-events:/home/iceberg/spark-events
 
   spark-driver:
     build: spark/
-    command: driver
+    command: tail -f /dev/null
     container_name: spark-driver
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
+      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
       - SPARK_MODE=driver
       - SPARK_DRIVER_HOST=spark-driver
-      - SPARK_DRIVER_MEMORY=${SPARK_DRIVER_MEMORY}
-      - SPARK_DRIVER_CORES=${SPARK_DRIVER_CORES}
-      - SPARK_EXECUTOR_MEMORY=${SPARK_EXECUTOR_MEMORY}
-      - SPARK_EXECUTOR_CORES=${SPARK_EXECUTOR_CORES}
-      - SPARK_EXECUTOR_INSTANCES=${SPARK_EXECUTOR_INSTANCES}
-      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
-      - PYSPARK_DRIVER_PYTHON=jupyter-notebook
-      - PYSPARK_DRIVER_PYTHON_OPTS=--ip=0.0.0.0 --NotebookApp.token='' --NotebookApp.${AWS_SECRET_ACCESS_KEY}='' --port=8888 --no-browser --allow-root
     depends_on:
       - spark-master
       - spark-worker-one
@@ -102,6 +107,7 @@ services:
       spark-net:
     volumes:
       - spark-events:/home/iceberg/spark-events
+      - ./airflow/dags/scripts:/home/scripts
     deploy:
       resources:
         limits:
@@ -111,6 +117,12 @@ services:
   minio:
     image: minio/minio
     container_name: minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -119,6 +131,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     networks:
+      shared-network:
       spark-net:
         aliases:
           - warehouse.minio
@@ -131,10 +144,26 @@ services:
           cpus: 1
           memory: 2G
 
+  console:
+    image: opens3/console:latest
+    container_name: opens3-console
+    ports:
+      - "9090:9090"
+    networks:
+      spark-net:
+    environment:
+      CONSOLE_MINIO_SERVER: http://minio:9000
+      CONSOLE_PORT: 9090
+    depends_on:
+      - minio
+
   mc:
     image: minio/mc
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
+      # data-gen:
+      #   condition: service_completed_successfully
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -183,3 +212,6 @@ volumes:
 networks:
   spark-net:
     driver: bridge
+  shared-network:
+    driver: bridge
+    external: true

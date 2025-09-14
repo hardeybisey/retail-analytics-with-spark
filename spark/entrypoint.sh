@@ -11,9 +11,8 @@ if [ "$1" = "master" ]; then
 elif [ "$1" = "worker" ]; then
   echo "Starting Spark worker..."
   $SPARK_HOME/bin/spark-class org.apache.spark.deploy.worker.Worker $SPARK_MASTER_URL
-elif [ "$1" = "driver" ]; then
-  echo "Starting notebook server..."
-  exec pyspark
+# elif [ "$1" = "driver" ]; then
+#   echo "Starting driver server..."
 else
   echo "Running custom command: $@"
   exec "$@"

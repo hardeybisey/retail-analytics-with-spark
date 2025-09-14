@@ -13,10 +13,6 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Jupyter and other python deps
-COPY requirements.txt .
-RUN pip3 install -r requirements.txt
-
 # Optional env variables
 ENV SPARK_HOME=${SPARK_HOME:-"/opt/spark"}
 ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH
@@ -65,13 +61,16 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
  && rm -rf aws/
 
 RUN mkdir -p /home/iceberg/spark-events
+RUN mkdir -p /home/scripts
 
-COPY spark-defaults.conf /opt/spark/conf
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
 
 RUN chmod u+x /opt/spark/sbin/* && \
     chmod u+x /opt/spark/bin/*
 
+# Copy Default Configs
+COPY spark-defaults.conf /opt/spark/conf
+COPY spark-env.sh /opt/spark/conf
 
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh

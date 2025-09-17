@@ -62,6 +62,12 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 
 RUN mkdir -p /home/iceberg/spark-events
 RUN mkdir -p /home/scripts
+RUN mkdir -p /home/iceberg/notebooks
+
+
+COPY requirements.txt .
+
+RUN pip install -r requirements.txt
 
 ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
 

@@ -53,6 +53,7 @@ services:
       - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
       - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
       - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
+      - SPARK_MASTER_URL=${SPARK_MASTER_URL}
     depends_on:
       - spark-master
     ports:
@@ -75,6 +76,7 @@ services:
       - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
       - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
       - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
+      - SPARK_MASTER_URL=${SPARK_MASTER_URL}
     depends_on:
       - spark-master
     ports:
@@ -96,18 +98,51 @@ services:
       - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
       - SPARK_MODE=driver
       - SPARK_DRIVER_HOST=spark-driver
+      - SPARK_MASTER_URL=${SPARK_MASTER_URL}
+      - AWS_URL_ENDPOINT=${AWS_URL_ENDPOINT}
     depends_on:
       - spark-master
       - spark-worker-one
       - spark-worker-two
     ports:
-      - "8888:8888"
       - "4040:4040"
     networks:
       spark-net:
     volumes:
       - spark-events:/home/iceberg/spark-events
       - ./airflow/dags/scripts:/home/scripts
+    deploy:
+      resources:
+        limits:
+          cpus: 1
+          memory: 1G
+
+  spark-notebook:
+    build: spark/
+    command: notebook
+    container_name: spark-notebook
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_REGION=us-east-1
+      - SPARK_MODE=driver
+      - SPARK_DRIVER_HOST=spark-notebook
+      - SPARK_DRIVER_MEMORY=1G
+      - SPARK_DRIVER_CORES=1
+      - SPARK_EXECUTOR_MEMORY=500m
+      - SPARK_EXECUTOR_CORES=2
+      - SPARK_EXECUTOR_INSTANCES=4
+      - SPARK_PUBLIC_DNS=localhost
+      - PYSPARK_DRIVER_PYTHON=jupyter-notebook
+      - PYSPARK_DRIVER_PYTHON_OPTS=--ip=0.0.0.0 --NotebookApp.token='' --NotebookApp.password='' --port=8888 --no-browser --allow-root
+    ports:
+      - "8888:8888"
+      - "4041:4040"
+    networks:
+      spark-net:
+    volumes:
+      - spark-events:/home/iceberg/spark-events
+      - ./notebooks:/home/iceberg/notebooks
     deploy:
       resources:
         limits:
@@ -136,6 +171,7 @@ services:
         aliases:
           - warehouse.minio
     volumes:
+      - ./csv_input:/tmp/data
       - minio-data:/data
     command: server /data --console-address ":9001"
     deploy:
@@ -152,8 +188,8 @@ services:
     networks:
       spark-net:
     environment:
-      CONSOLE_MINIO_SERVER: http://minio:9000
-      CONSOLE_PORT: 9090
+      - CONSOLE_MINIO_SERVER=http://minio:9000
+      - CONSOLE_PORT=9090
     depends_on:
       - minio
 
@@ -191,8 +227,8 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
       - CATALOG_WAREHOUSE=s3://${S3_WH_BUCKET}/
-      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
+      - CATALOG_IO__IMPL=${CATALOG_IO__IMPL}
+      - CATALOG_S3_ENDPOINT=${CATALOG_S3_ENDPOINT}
     ports:
       - "8181:8181"
     networks:

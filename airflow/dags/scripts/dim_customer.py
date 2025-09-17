@@ -1,24 +1,18 @@
-import logging
-
-from pyspark.sql.functions import col
-from pyspark.sql.functions import row_number
+from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 from schema import get_customer_schema
-from utils import create_spark_session
-from utils import extract_raw_data
-from utils import load_data_to_iceberg_table
+from utils import (
+    get_or_create_spark_session,
+    extract_raw_data,
+    load_data_to_iceberg_table,
+    create_logger,
+)
 
-logger = logging.getLogger("airflow.task")
+logger = create_logger("dim_customer.etl")
 
 
-def create_customer_dim_table():
-    logger.info("Starting create_customer_dim_table")
-    _spark = create_spark_session(caller="dim_customer")
-
-    df = extract_raw_data(_spark, "csv-input", "customers.csv", get_customer_schema())
-
-    window_spec = Window.partitionBy("customer_id").orderBy("updated_date")
-
+def transform_customers_data(df):
+    logger.info("Transforming customers data for dimensional modelling")
     df = (
         df.withColumnsRenamed(
             {
@@ -29,8 +23,13 @@ def create_customer_dim_table():
                 "customer_updated_date": "updated_date",
             }
         )
-        .withColumn("row_num", row_number().over(window_spec))
-        .filter(col("row_num") == 1)
+        .withColumn(
+            "row_num",
+            F.row_number().over(
+                Window.partitionBy("customer_id").orderBy("updated_date")
+            ),
+        )
+        .filter(F.col("row_num") == 1)
         .select(
             "customer_id",
             "address",
@@ -41,12 +40,20 @@ def create_customer_dim_table():
         )
         .drop("row_num")
     )
-    logger.info("Finished processing DataFrame, now loading to Iceberg table")
+    logger.info("Transformed customers data successfully")
+    return df
 
-    load_data_to_iceberg_table(df, "dim_customer")
+
+def run_etl():
+    logger.info("Running ETL process for dim_customer")
+    sc = get_or_create_spark_session()
+    df = extract_raw_data(
+        spark_context=sc, object_name="customers.csv", schema=get_customer_schema()
+    )
+    dim_customer = transform_customers_data(df)
+    load_data_to_iceberg_table(df=dim_customer, table_name="dim_customer")
+    logger.info("Finished ETL process for dim_customer")
 
 
 if __name__ == "__main__":
-    logger.info("Starting ETL process for dim_customer")
-    create_customer_dim_table()
-    logger.info("ETL process completed for dim_customer")
+    run_etl()

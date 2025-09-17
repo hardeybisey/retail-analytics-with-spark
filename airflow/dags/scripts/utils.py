@@ -4,28 +4,38 @@ from pyspark.sql import DataFrame as SparkDataFrame
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType
 
-t_log = logging.getLogger("airflow.task")
+
+def create_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    if not logger.hasHandlers():
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    return logger
 
 
-def create_spark_session(caller: str = "") -> SparkSession:
-    t_log.info(f"Creating Spark session for {caller}")
-    spark = SparkSession.builder.appName(
-        f"Retail Analytics with Spark - {caller}"
-    ).getOrCreate()
-    # .config("spark.hadoop.fs.s3a.access.key", "admin") \
-    # .config("spark.hadoop.fs.s3a.secret.key", "password") \
-    # .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000").getOrCreate()
-    # .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.466")\
+logger = create_logger("retail-analytics.utils")
 
+
+def get_or_create_spark_session() -> SparkSession:
+    logger.info("Creating Spark session")
+    spark = SparkSession.builder.appName("Retail Analytics with Spark").getOrCreate()
     return spark
 
 
 def extract_raw_data(
-    spark: SparkSession, s3_bucket: str, object_name: str, schema: StructType
+    spark_context: SparkSession,
+    object_name: str,
+    schema: StructType,
+    s3_bucket: str = "csv-input",
 ) -> SparkDataFrame:
     "Extract the raw data from the CSV file"
-    t_log.info(f"Extracting raw data from s3a://{s3_bucket}/{object_name}")
-    data = spark.read.csv(
+    logger.info(f"Extracting raw data from s3a://{s3_bucket}/{object_name}")
+    data = spark_context.read.csv(
         f"s3a://{s3_bucket}/{object_name}", header=True, schema=schema
     )
     return data
@@ -37,8 +47,17 @@ def load_data_to_iceberg_table(
     mode: str = "overwrite",
 ) -> None:
     "Load the data into the Iceberg table"
-    t_log.info(f"Loading data into Iceberg table {table_name}")
+    logger.info(f"Writing data to Iceberg table {table_name}")
     df.write.mode(mode).saveAsTable(table_name)
+
+
+def read_from_iceberg_table(
+    spark_context: SparkSession, table_name: str
+) -> SparkDataFrame:
+    "Read the data from the Iceberg table"
+    logger.info(f"Reading data from Iceberg table {table_name}")
+    df = spark_context.read.table(table_name)
+    return df
 
 
 class IcebergSparkSession:

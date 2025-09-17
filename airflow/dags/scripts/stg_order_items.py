@@ -1,20 +1,16 @@
-import logging
-
 from schema import get_order_items_schema
-from utils import create_spark_session
-from utils import extract_raw_data
-from utils import load_data_to_iceberg_table
+from utils import (
+    get_or_create_spark_session,
+    extract_raw_data,
+    load_data_to_iceberg_table,
+    create_logger,
+)
 
-logger = logging.getLogger("airflow.task")
+logger = create_logger("stg_order_items.etl")
 
 
-def create_stg_order_items_table():
-    logger.info("Starting create_stg_order_items_table")
-    _spark = create_spark_session(caller="stg_order_items")
-
-    df = extract_raw_data(
-        _spark, "csv-input", "order_items.csv", get_order_items_schema()
-    )
+def transform_order_items_data(df):
+    logger.info("Transforming order items data for staging table")
     df = (
         df.withColumnsRenamed(
             {
@@ -32,12 +28,24 @@ def create_stg_order_items_table():
             "shipping_limit_date",
         )
     )
-    logger.info("Finished processing DataFrame, now loading to Iceberg table")
+    logger.info("Transformed order items data successfully")
+    return df
 
-    load_data_to_iceberg_table(df, "stg_order_items")
+
+def run_etl():
+    logger.info("Starting ETL process for stg_order_items")
+    sc = get_or_create_spark_session()
+
+    df = extract_raw_data(
+        spark_context=sc,
+        object_name="order_items.csv",
+        schema=get_order_items_schema(),
+    )
+    stg_order_items = transform_order_items_data(df)
+
+    load_data_to_iceberg_table(df=stg_order_items, table_name="stg_order_items")
+    logger.info("Finished ETL process for stg_order_items")
 
 
 if __name__ == "__main__":
-    logger.info("Starting ETL process for stg_order_items")
-    create_stg_order_items_table()
-    logger.info("ETL process completed for stg_order_items")
+    run_etl()

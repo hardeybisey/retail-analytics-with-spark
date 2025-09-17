@@ -1,28 +1,18 @@
-import logging
-
-from pyspark.sql.functions import col
-from pyspark.sql.functions import row_number
+from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 from schema import get_orders_schema
-from utils import create_spark_session
-from utils import extract_raw_data
-from utils import load_data_to_iceberg_table
+from utils import (
+    get_or_create_spark_session,
+    extract_raw_data,
+    load_data_to_iceberg_table,
+    create_logger,
+)
 
-logger = logging.getLogger("airflow.task")
-
-# from pyspark.sql import SparkSession
-# from pyspark.sql.functions import col, sum as spark_sum, min as spark_min, max as
-# spark_max, count, monotonically_increasing_id
+logger = create_logger("stg_orders.etl")
 
 
-def create_stg_orders_table():
-    logger.info("Starting create_stg_orders_table")
-    _spark = create_spark_session(caller="stg_orders")
-
-    df = extract_raw_data(_spark, "csv-input", "orders.csv", get_orders_schema())
-
-    window_spec = Window.partitionBy("order_id").orderBy("order_approved_date")
-
+def transform_orders_data(df):
+    logger.info("Transforming orders data for staging table")
     df = (
         df.withColumnsRenamed(
             {
@@ -33,8 +23,13 @@ def create_stg_orders_table():
                 "order_estimated_delivery_date": "estimated_delivery_date",
             }
         )
-        .withColumn("row_num", row_number().over(window_spec))
-        .filter(col("row_num") == 1)
+        .withColumn(
+            "row_num",
+            F.row_number().over(
+                Window.partitionBy("order_id").orderBy("order_approved_date")
+            ),
+        )
+        .filter(F.col("row_num") == 1)
         .select(
             "order_id",
             "customer_id",
@@ -46,12 +41,22 @@ def create_stg_orders_table():
             "order_status",
         )
     )
-    logger.info("Finished processing DataFrame, now loading to Iceberg table")
+    logger.info("Transformed orders data successfully")
+    return df
 
-    load_data_to_iceberg_table(df, "stg_orders")
+
+def run_etl():
+    logger.info("Starting ETL process for stg_orders")
+    sc = get_or_create_spark_session()
+
+    df = extract_raw_data(
+        spark_context=sc, object_name="orders.csv", schema=get_orders_schema()
+    )
+
+    stg_orders = transform_orders_data(df)
+    load_data_to_iceberg_table(df=stg_orders, table_name="stg_orders")
+    logger.info("Finished ETL process for stg_orders")
 
 
 if __name__ == "__main__":
-    logger.info("Starting ETL process for stg_orders")
-    create_stg_orders_table()
-    logger.info("ETL process completed for stg_orders")
+    run_etl()

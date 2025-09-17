@@ -35,37 +35,11 @@ This template used DuckDB, an in-memory database, for running dbt transformation
 astro dev object import
 
 
-spark-submit --master spark://spark-master:7077 --deploy-mode client /home/scripts/dim_customer.py
-
-spark-submit \
-  --master spark://spark-master:7077 \
-  --deploy-mode client \
-  --packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.466,org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.9.0 \
-  --executor-cores 1 \
-  --num-executors 1 \
-  --executor-memory 500m \
-  --conf spark.executor.instances=1 \
-  --conf  spark.hadoop.fs.s3a.access.key=admin \
-  --conf spark.hadoop.fs.s3a.secret.key=password \
-  --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
-  --conf spark.hadoop.fs.s3a.path.style.access=true \
-  --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
-  --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
-  --conf spark.sql.catalog.demo.warehouse=s3a://warehouse/ \
-  --conf spark.sql.catalog.demo.uri=http://iceberg-rest:8181 \
-  --conf spark.sql.catalog.demo=org.apache.iceberg.spark.SparkCatalog \
-  --conf spark.sql.catalogImplementation=in-memory \
-  --conf spark.sql.defaultCatalog=demo \
-  --conf spark.sql.catalog.demo.default-namespace=retail_analytics \
-  --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-  --name dim_customers_job \
-  --conf spark.driver.host=etl_b8fc85-scheduler-1 \
-  /usr/local/airflow/dags/scripts/dim_customer.py
-
-
-spark-submit --master spark://spark-master:7077 --deploy-mode client /home/scripts/dim_customer.py
-spark-submit --master spark://spark-master:7077 --executor-memory 2G --total-executor-cores 2 --executor-cores 2 --deploy-mode client /home/scripts/dim_seller.py
-spark-submit --master spark://spark-master:7077 --deploy-mode client /home/scripts/dim_product.py
-spark-submit --master spark://spark-master:7077 --deploy-mode client /home/scripts/dim_product_category.py
-spark-submit --master spark://spark-master:7077 --deploy-mode client /home/scripts/stg_orders.py
-spark-submit --master spark://spark-master:7077 --deploy-mode client /home/scripts/stg_order_items.py
+spark-submit --master spark://spark-master:7077 /home/scripts/dim_customer.py
+spark-submit --master spark://spark-master:7077 /home/scripts/dim_seller.py
+spark-submit --master spark://spark-master:7077 /home/scripts/dim_product.py
+spark-submit --master spark://spark-master:7077 /home/scripts/dim_date.py
+spark-submit --master spark://spark-master:7077 /home/scripts/stg_orders.py
+spark-submit --master spark://spark-master:7077 /home/scripts/stg_order_items.py
+spark-submit --master spark://spark-master:7077 /home/scripts/fct_orders.py
+spark-submit --master spark://spark-master:7077 /home/scripts/fct_order_items.py

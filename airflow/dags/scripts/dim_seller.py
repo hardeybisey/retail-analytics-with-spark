@@ -1,24 +1,18 @@
-import logging
-
-from pyspark.sql.functions import col
-from pyspark.sql.functions import row_number
+from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 from schema import get_seller_schema
-from utils import create_spark_session
-from utils import extract_raw_data
-from utils import load_data_to_iceberg_table
+from utils import (
+    get_or_create_spark_session,
+    extract_raw_data,
+    load_data_to_iceberg_table,
+    create_logger,
+)
 
-logger = logging.getLogger("airflow.task")
+logger = create_logger("dim_seller.etl")
 
 
-def create_seller_dim_table():
-    logger.info("Starting create_seller_dim_table")
-    _spark = create_spark_session(caller="dim_seller")
-
-    df = extract_raw_data(_spark, "csv-input", "sellers.csv", get_seller_schema())
-
-    window_spec = Window.partitionBy("seller_id").orderBy("updated_date")
-
+def transform_sellers_data(df):
+    logger.info("Transforming sellers data for dimensional modelling")
     df = (
         df.withColumnsRenamed(
             {
@@ -29,8 +23,13 @@ def create_seller_dim_table():
                 "seller_updated_date": "updated_date",
             }
         )
-        .withColumn("row_num", row_number().over(window_spec))
-        .filter(col("row_num") == 1)
+        .withColumn(
+            "row_num",
+            F.row_number().over(
+                Window.partitionBy("seller_id").orderBy("updated_date")
+            ),
+        )
+        .filter(F.col("row_num") == 1)
         .select(
             "seller_id",
             "address",
@@ -41,12 +40,20 @@ def create_seller_dim_table():
         )
         .drop("row_num")
     )
-    logger.info("Finished processing DataFrame, now loading to Iceberg table")
+    logger.info("Transformed sellers data successfully")
+    return df
 
-    load_data_to_iceberg_table(df, "dim_seller")
+
+def run_etl():
+    logger.info("Starting ETL process for dim_seller")
+    sc = get_or_create_spark_session()
+    df = extract_raw_data(
+        spark_context=sc, object_name="sellers.csv", schema=get_seller_schema()
+    )
+    dim_seller = transform_sellers_data(df)
+    load_data_to_iceberg_table(df=dim_seller, table_name="dim_seller")
+    logger.info("ETL process completed for dim_seller")
 
 
 if __name__ == "__main__":
-    logger.info("Starting ETL process for dim_seller")
-    create_seller_dim_table()
-    logger.info("ETL process completed for dim_seller")
+    run_etl()

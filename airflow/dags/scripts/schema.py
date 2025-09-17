@@ -1,10 +1,12 @@
-from pyspark.sql.types import DoubleType
-from pyspark.sql.types import FloatType
-from pyspark.sql.types import IntegerType
-from pyspark.sql.types import StringType
-from pyspark.sql.types import StructField
-from pyspark.sql.types import StructType
-from pyspark.sql.types import TimestampType
+from pyspark.sql.types import (
+    DoubleType,
+    FloatType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampType,
+)
 
 
 def get_customer_schema() -> StructType:

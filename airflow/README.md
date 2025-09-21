@@ -34,12 +34,9 @@ This template used DuckDB, an in-memory database, for running dbt transformation
 ## Commands
 astro dev object import
 
-
+spark-submit --master spark://spark-master:7077 /home/scripts/dim_date.py
 spark-submit --master spark://spark-master:7077 /home/scripts/dim_customer.py
 spark-submit --master spark://spark-master:7077 /home/scripts/dim_seller.py
 spark-submit --master spark://spark-master:7077 /home/scripts/dim_product.py
-spark-submit --master spark://spark-master:7077 /home/scripts/dim_date.py
-spark-submit --master spark://spark-master:7077 /home/scripts/stg_orders.py
-spark-submit --master spark://spark-master:7077 /home/scripts/stg_order_items.py
-spark-submit --master spark://spark-master:7077 /home/scripts/fct_orders.py
-spark-submit --master spark://spark-master:7077 /home/scripts/fct_order_items.py
+spark-submit --master spark://spark-master:7077 /home/scripts/fact_order_summary.py
+spark-submit --master spark://spark-master:7077 /home/scripts/fact_order_items.py

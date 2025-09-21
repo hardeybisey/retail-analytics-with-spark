@@ -21,13 +21,19 @@ def create_logger(name: str) -> logging.Logger:
 logger = create_logger("retail-analytics.utils")
 
 
-def get_or_create_spark_session() -> SparkSession:
+def get_or_create_spark_session(
+    app_name: str = "Retail Analytics with Spark", config: dict = {}
+) -> SparkSession:
     logger.info("Creating Spark session")
-    spark = SparkSession.builder.appName("Retail Analytics with Spark").getOrCreate()
-    return spark
+
+    sc = SparkSession.builder.appName(app_name).getOrCreate()
+    for key, value in config.items():
+        sc.conf.set(key, value)
+
+    return sc
 
 
-def extract_raw_data(
+def read_csv(
     spark_context: SparkSession,
     object_name: str,
     schema: StructType,
@@ -60,51 +66,59 @@ def read_from_iceberg_table(
     return df
 
 
-class IcebergSparkSession:
-    def __init__(
-        self, app_name, warehouse_path, s3_endpoint, s3_access_key, s3_secret_key
-    ):
-        self.app_name = app_name
-        self.warehouse_path = warehouse_path
-        self.s3_endpoint = s3_endpoint
-        self.s3_access_key = s3_access_key
-        self.s3_secret_key = s3_secret_key
-        self.spark = self.create_spark_session()
-        self.configure_s3()
+# class IcebergSparkSession:
+#     def __init__(self, app_name: str, config: dict):
+#         self.app_name = app_name
+#         self.config = config
+#         self.warehouse_path = config.get("warehouse_path")
+#         self.s3_endpoint = config.get("s3_endpoint")
+#         self.s3_access_key = config.get("s3_access_key")
+#         self.s3_secret_key = config.get("s3_secret_key")
+#         self.spark = self.create_spark_session()
+#         self.configure_s3()
 
-    def create_spark_session(self):
-        packages = [
-            "hadoop-aws-3.3.4",
-            "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12-1.5.2",
-            "aws-java-sdk-bundle-1.12.262",
-        ]
+#     def create_spark_session(self):
+#         sc = SparkSession.builder.appName(self.app_name).getOrCreate()
 
-        builder = (
-            SparkSession.builder.appName(self.app_name)
-            .config("spark.jars.packages", ",".join(packages))
-            .config(
-                "spark.sql.extensions",
-                "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-            )
-            .config(
-                "spark.sql.catalog.spark_catalog",
-                "org.apache.iceberg.spark.SparkCatalog",
-            )
-            .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog")
-            .config("spark.sql.catalog.local.type", "hadoop")
-            .config("spark.sql.catalog.local.warehouse", self.warehouse_path)
-            .config("spark.ui.port", "4050")
-        )
+#         for key, value in self.config.items():
+#             sc.conf.set(key, value)
 
-        return builder.getOrCreate()
+#         return sc
 
-    def configure_s3(self):
-        sc = self.spark.sparkContext
-        sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", self.s3_access_key)
-        sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", self.s3_secret_key)
-        sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", self.s3_endpoint)
-        sc._jsc.hadoopConfiguration().set("fs.s3a.path.style.access", "true")
-        sc._jsc.hadoopConfiguration().set("fs.s3a.connection.ssl.enabled", "false")
-        sc._jsc.hadoopConfiguration().set(
-            "fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
-        )
+#         # self.spark = sc
+
+#         # packages = [
+#         #     "hadoop-aws-3.3.4",
+#         #     "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12-1.5.2",
+#         #     "aws-java-sdk-bundle-1.12.262",
+#         # ]
+
+#         # builder = (
+#         #     SparkSession.builder.appName(self.app_name)
+#         #     .config("spark.jars.packages", ",".join(packages))
+#         #     .config(
+#         #         "spark.sql.extensions",
+#         #         "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+#         #     )
+#         #     .config(
+#         #         "spark.sql.catalog.spark_catalog",
+#         #         "org.apache.iceberg.spark.SparkCatalog",
+#         #     )
+#         #     .config("spark.sql.catalog.local", "org.apache.iceberg.spark.SparkCatalog")
+#         #     .config("spark.sql.catalog.local.type", "hadoop")
+#         #     .config("spark.sql.catalog.local.warehouse", self.warehouse_path)
+#         #     .config("spark.ui.port", "4050")
+#         # )
+
+#         # return builder.getOrCreate()
+
+#     def configure_s3(self):
+#         sc = self.spark.sparkContext
+#         sc._jsc.hadoopConfiguration().set("fs.s3a.access.key", self.s3_access_key)
+#         sc._jsc.hadoopConfiguration().set("fs.s3a.secret.key", self.s3_secret_key)
+#         sc._jsc.hadoopConfiguration().set("fs.s3a.endpoint", self.s3_endpoint)
+#         sc._jsc.hadoopConfiguration().set("fs.s3a.path.style.access", "true")
+#         sc._jsc.hadoopConfiguration().set("fs.s3a.connection.ssl.enabled", "false")
+#         sc._jsc.hadoopConfiguration().set(
+#             "fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem"
+#         )

@@ -119,7 +119,14 @@ services:
 
   spark-notebook:
     build: spark/
-    command: notebook
+    command: >
+      jupyter notebook
+      --ip=0.0.0.0
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+      --port=8888
+      --no-browser
+      --allow-root
     container_name: spark-notebook
     environment:
       - AWS_ACCESS_KEY_ID=admin
@@ -133,8 +140,6 @@ services:
       - SPARK_EXECUTOR_CORES=2
       - SPARK_EXECUTOR_INSTANCES=4
       - SPARK_PUBLIC_DNS=localhost
-      - PYSPARK_DRIVER_PYTHON=jupyter-notebook
-      - PYSPARK_DRIVER_PYTHON_OPTS=--ip=0.0.0.0 --NotebookApp.token='' --NotebookApp.password='' --port=8888 --no-browser --allow-root
     ports:
       - "8888:8888"
       - "4041:4040"

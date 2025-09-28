@@ -18,6 +18,21 @@ For other stacks, check the following projects:
 * [Airflow](https://airflow.apache.org/)
 
 ---
-## Setup
+## Architecture
 
-### System requirements
+Airflow:
+Icerberg:
+Spark:
+Minio:
+
+---
+###
+Solution Elements
+Element	Purpose
+Architecture	High-level overview and structure
+CI/CD (GitHub Actions)	Automates code deployment and infrastructure updates
+Data Processing (PySpark) Simulates realistic shipping/logistics datasets and processing
+Infrastructure (Terraform) Automates cloud setup (IAM, S3, networking)
+Orchestration (Kestra)	Manages data pipeline workflows
+
+### System Requirements

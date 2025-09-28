@@ -1,37 +1,33 @@
 from pyspark.sql import functions as F
-from schema import get_products_schema, get_product_category_schema
+from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
-    read_csv,
+    read_parquet,
     load_data_to_iceberg_table,
     read_from_iceberg_table,
     create_logger,
 )
 
-logger = create_logger("dim_product.etl")
+logger = create_logger("dim_product")
 
 
-def create_stg_product(spark):
+def create_stg_product_table(spark: SparkSession) -> None:
     """Create the staging table for product data
 
-    Parameters:
-        spark: SparkSession
-    Returns:
-        None
-    Steps:
-        1. Read the raw product and category data from the CSV file in S3
-        2. Rename columns to match the target schema
-        3. Deduplicate records based on product_id
-        4. Select relevant columns for the staging table
-        5. Load the data into the Iceberg staging table 'stg_product'
+    This function creates a `stg_product` table from both product and product category data read from Parquet files, renaming columns and deduplicating the data.
+
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
-    df_product = read_csv(
-        spark_context=spark, object_name="products.csv", schema=get_products_schema()
-    )
-    df_product_category = read_csv(
+    df_product = read_parquet(
         spark_context=spark,
-        object_name="product_category.csv",
-        schema=get_product_category_schema(),
+        object_name="products.parquet",
+    )
+    df_product_category = read_parquet(
+        spark_context=spark,
+        object_name="product_category.parquet",
     )
 
     df = df_product.join(
@@ -50,8 +46,8 @@ def create_stg_product(spark):
             "product_length_cm": "length_cm",
             "product_height_cm": "height_cm",
             "product_width_cm": "width_cm",
-            # "product_created_date": "created_date",
-            # "product_updated_date": "updated_date",
+            "product_created_date": "created_date",
+            "product_updated_date": "updated_date",
         }
     ).select(
         "product_id",
@@ -63,24 +59,23 @@ def create_stg_product(spark):
         "length_cm",
         "height_cm",
         "width_cm",
+        "created_date",
+        "updated_date",
     )
 
     load_data_to_iceberg_table(df, table_name="stg_product", mode="overwrite")
 
 
-def create_product_scd2(spark):
-    """Create the dim_product table with SCD Type 2 implementation
+def create_product_scd2(spark: SparkSession) -> None:
+    """Create SCD2 records for product dimension table
 
-    Parameters:
-        spark: SparkSession
+    This function creates a `tmp_dim_product` table with Slowly Changing Dimension Type 2
+    (SCD2) records for the product dimension table with changes from `stg_product` table.
 
-    Returns:
-        None
-
-    Steps:
-        1. Read data from the staging table 'stg_product' and dimension table 'dim_product'
-        2. Generate surrogate keys and set SCD2 fields
-        3. Load the data into a temporary Iceberg table 'tmp_dim_product'
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
     stg_product_table = read_from_iceberg_table(spark, "stg_product")
     dim_product_table = read_from_iceberg_table(spark, "dim_product")
@@ -103,19 +98,20 @@ def create_product_scd2(spark):
     new_records = (
         active_records.filter(F.col("dc.price").isNull() | common_filter)
         .select(
-            F.col("sc.product_id").alias("product_id"),
-            F.col("sc.product_name").alias("product_name"),
-            F.col("sc.price").alias("price"),
-            F.col("sc.category_name").alias("category_name"),
-            F.col("sc.sub_category").alias("sub_category"),
-            F.col("sc.size_label").alias("size_label"),
-            F.col("sc.length_cm").alias("length_cm"),
-            F.col("sc.height_cm").alias("height_cm"),
-            F.col("sc.width_cm").alias("width_cm"),
+            F.col("sc.product_id"),
+            F.col("sc.product_name"),
+            F.col("sc.price"),
+            F.col("sc.category_name"),
+            F.col("sc.sub_category"),
+            F.col("sc.size_label"),
+            F.col("sc.length_cm"),
+            F.col("sc.height_cm"),
+            F.col("sc.width_cm"),
+            F.col("sc.created_date"),
         )
         .withColumns(
             {
-                "effective_from": F.current_date(),
+                "effective_from": F.col("created_date"),
                 "effective_to": F.lit(None),
                 "is_current": F.lit(True),
             }
@@ -126,6 +122,7 @@ def create_product_scd2(spark):
                 F.concat_ws("||", F.col("product_id"), F.col("effective_from")), 256
             ),
         )
+        .drop("created_date")
     )
 
     expired_records = (
@@ -156,19 +153,18 @@ def create_product_scd2(spark):
     load_data_to_iceberg_table(df, table_name="tmp_dim_product", mode="overwrite")
 
 
-def create_product_dim(spark):
-    """Merge SCD2 records into the dimension table
+def create_product_dim_table(spark: SparkSession) -> None:
+    """Merge SCD2 records into product dimension table
 
-    Parameters:
-        spark: SparkSession
+    This function merges the SCD2 records from `tmp_dim_product` into the
+    `dim_product` table.
 
-    Returns:
-        None
-    Steps:
-        1. Merge new and updated records from 'tmp_dim_product' into 'dim_product'
-        2. Insert new records into the dimension table
+
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
-
     spark.sql("""
         MERGE INTO dim_product AS target
         USING tmp_dim_product AS src
@@ -185,28 +181,9 @@ def create_product_dim(spark):
 def run_etl():
     logger.info("Starting ETL process for dim_product")
     sc = get_or_create_spark_session()
-    sc.sql(
-        """
-        CREATE TABLE IF NOT EXISTS dim_product (
-            product_sk STRING NOT NULL,
-            product_id STRING NOT NULL,
-            product_name STRING NOT NULL,
-            category_name STRING NOT NULL,
-            sub_category STRING NOT NULL,
-            price DECIMAL(10, 2) NOT NULL,
-            size_label STRING NOT NULL,
-            length_cm FLOAT NOT NULL,
-            height_cm FLOAT NOT NULL,
-            width_cm FLOAT NOT NULL,
-            effective_from DATE NOT NULL,
-            effective_to DATE,
-            is_current BOOLEAN NOT NULL
-        ) USING ICEBERG
-        """
-    )
-    create_stg_product(spark=sc)
+    create_stg_product_table(spark=sc)
     create_product_scd2(spark=sc)
-    create_product_dim(spark=sc)
+    create_product_dim_table(spark=sc)
     logger.info("ETL process completed for dim_product")
 
 

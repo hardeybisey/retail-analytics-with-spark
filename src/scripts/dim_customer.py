@@ -1,36 +1,30 @@
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
-from schema import get_customer_schema
+from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
     load_data_to_iceberg_table,
-    read_csv,
+    read_parquet,
     create_logger,
     read_from_iceberg_table,
 )
 
-logger = create_logger("dim_customer.etl")
+logger = create_logger("dim_customer")
 
 
-def create_stg_customer(spark):
+def create_stg_customer_table(spark: SparkSession) -> None:
     """Create the staging table for customer data
 
-    Parameters:
-        spark: SparkSession
+    This function creates a `stg_customer` table by
+    reading from a Parquet file, renaming columns and deduplicating the data.
 
-    Returns:
-        None
-
-    Steps:
-        1. Read the raw customer data from the CSV file in S3
-        2. Rename columns to match the target schema
-        3. Deduplicate records based on customer_id, keeping the latest updated_date
-        4. Select relevant columns for the staging table
-        5. Load the data into the Iceberg staging table 'stg_customer'
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
-    df = read_csv(
-        spark_context=spark, object_name="customers.csv", schema=get_customer_schema()
-    )
+
+    df = read_parquet(spark_context=spark, object_name="customers.parquet")
     df = (
         df.withColumnsRenamed(
             {
@@ -60,23 +54,16 @@ def create_stg_customer(spark):
     load_data_to_iceberg_table(df, table_name="stg_customer", mode="overwrite")
 
 
-def create_customer_scd2(spark):
+def create_customer_scd2(spark: SparkSession) -> None:
     """Create SCD2 records for customer dimension table
 
-    Parameters:
-        spark: SparkSession
+    This function creates a `tmp_dim_customer` table with Slowly Changing Dimension Type 2
+    (SCD2) records for the customer dimension table with changes from `stg_customer` table.
 
-    Returns:
-        None
-
-    Steps:
-        1. Read the staging table 'stg_customer' and dimension table 'dim_customer'
-        2. Perform a full outer join on customer_id and is_current flag
-        3. Identify new and changed records based on address, state, and zip_code_prefix
-        4. Create new records with a new surrogate key, effective_from date, and is_current flag
-        5. Create expired records by updating the effective_to date and is_current flag
-        6. Union new and expired records
-        7. Load the data into a temporary Iceberg table 'tmp_dim_customer'
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
     stg_customer_table = read_from_iceberg_table(spark, "stg_customer")
     dim_customer_table = read_from_iceberg_table(spark, "dim_customer")
@@ -144,22 +131,17 @@ def create_customer_scd2(spark):
     load_data_to_iceberg_table(df, table_name="tmp_dim_customer", mode="overwrite")
 
 
-def create_customer_dim(spark):
-    """Merge SCD2 records into the dimension table
+def create_customer_dim_table(spark: SparkSession) -> None:
+    """Merge SCD2 records into the customer dimension table
 
-    Parameters:
-        spark: SparkSession
+    This function merges the SCD2 records from the `tmp_dim_customer` staging
+    table into `dim_customer` table.
 
-    Returns:
-        None
-
-    Steps:
-        1. Read the temporary table 'tmp_dim_customer' and dimension table 'dim_customer'
-        2. Perform a merge operation based on customer_sk and is_current flag
-        3. Update existing records with new effective_to date and is_current flag
-        4. Insert new records into the dimension table
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
-
     spark.sql("""
         MERGE INTO dim_customer AS target
         USING tmp_dim_customer AS src
@@ -169,31 +151,16 @@ def create_customer_dim(spark):
                 target.effective_to = src.effective_to,
                 target.is_current = src.is_current
         WHEN NOT MATCHED THEN
-            INSERT (customer_sk, customer_id, address, state, zip_code_prefix, effective_from, effective_to, is_current)
-            VALUES (src.customer_sk, src.customer_id, src.address, src.state, src.zip_code_prefix, src.effective_from, src.effective_to, src.is_current)
+            INSERT *
     """)
 
 
 def run_etl():
     logger.info("Running ETL process for stg_customer")
     sc = get_or_create_spark_session()
-    sc.sql(
-        """
-    CREATE OR REPLACE TABLE dim_customer (
-        customer_sk STRING NOT NULL,
-        customer_id STRING NOT NULL,
-        address STRING NOT NULL,
-        state STRING NOT NULL,
-        zip_code_prefix STRING NOT NULL,
-        effective_from DATE NOT NULL,
-        effective_to DATE,
-        is_current BOOLEAN NOT NULL
-    ) USING ICEBERG
-    """
-    )
-    create_stg_customer(sc)
+    create_stg_customer_table(sc)
     create_customer_scd2(sc)
-    create_customer_dim(sc)
+    create_customer_dim_table(sc)
     logger.info("Finished ETL process for stg_customer")
 
 

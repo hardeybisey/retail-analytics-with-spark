@@ -5,8 +5,9 @@ services:
   #     --customers 20000
   #     --sellers 2000
   #     --orders 2000000
+  #     --format parquet
   #   volumes:
-  #       - ./csv_input:/data
+  #       - ./raw_input:/data
 
   spark-master:
     container_name: spark-master
@@ -176,7 +177,6 @@ services:
         aliases:
           - warehouse.minio
     volumes:
-      - ./csv_input:/tmp/data
       - minio-data:/data
     command: server /data --console-address ":9001"
     deploy:
@@ -211,7 +211,7 @@ services:
     networks:
       spark-net:
     volumes:
-      - ./csv_input:/tmp/data
+      - ./raw_input:/tmp/data
     entrypoint: >
       /bin/sh -c "
       sleep 5 &&
@@ -219,7 +219,7 @@ services:
       mc mb --ignore-existing local/${S3_LOGS_BUCKET};
       mc mb --ignore-existing local/${S3_INPUTS_BUCKET};
       mc mb --ignore-existing local/${S3_WH_BUCKET};
-      mc cp --recursive /tmp/data/*.csv local/${S3_INPUTS_BUCKET}/;
+      mc cp --recursive /tmp/data/*.parquet local/${S3_INPUTS_BUCKET}/;
       exit 0;
       "
     restart: "no"

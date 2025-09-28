@@ -1,22 +1,30 @@
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
-from schema import get_orders_schema
+from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
-    # extract_raw_data,
     load_data_to_iceberg_table,
     read_from_iceberg_table,
     create_logger,
-    read_csv,
+    read_parquet,
 )
 
-logger = create_logger("stg_orders.etl")
+logger = create_logger("fact_order_summary.etl")
 
 
-def create_stg_orders_table(spark):
-    df = read_csv(
-        spark_context=spark, object_name="orders.csv", schema=get_orders_schema()
-    )
+def create_stg_orders_table(spark: SparkSession) -> None:
+    """Create the staging table for orders data
+
+    This function creates a `stg_orders` table by
+    reading from a Parquet file, renaming columns and deduplicating the data.
+
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
+    """
+
+    df = read_parquet(spark_context=spark, object_name="orders.parquet")
     df = (
         df.withColumnsRenamed(
             {
@@ -48,7 +56,17 @@ def create_stg_orders_table(spark):
     load_data_to_iceberg_table(df, table_name="stg_orders", mode="overwrite")
 
 
-def fct_order_summary_table(spark):
+def fct_order_summary_table(spark: SparkSession) -> None:
+    """Create the fact table for order summary
+
+    This function creates a `fct_order_summary` table by
+    combining data from `stg_order_items`, `stg_orders`, `dim_customer`, and `dim_date`.
+
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
+    """
     dim_date = read_from_iceberg_table(spark, "dim_date")
     stg_orders = read_from_iceberg_table(spark, "stg_orders")
     stg_order_items = read_from_iceberg_table(spark, "stg_order_items")
@@ -128,31 +146,11 @@ def fct_order_summary_table(spark):
 
 
 def run_etl():
-    logger.info("Starting ETL process for stg_orders")
+    logger.info("Starting ETL process for fact_order_summary")
     sc = get_or_create_spark_session()
-    sc.sql(
-        """
-        CREATE TABLE IF NOT EXISTS fct_order_summary (
-            order_summary_sk STRING NOT NULL,
-            customer_sk STRING NOT NULL,
-            order_id STRING NOT NULL,
-            order_status STRING NOT NULL,
-            total_order_value DECIMAL(10, 2) NOT NULL,
-            total_freight_value DECIMAL(10, 2) NOT NULL,
-            item_count INT NOT NULL,
-            order_date_key DATE NOT NULL,
-            delivered_to_carrier_date_key DATE NOT NULL,
-            delivered_to_customer_date_key DATE NOT NULL,
-            estimated_delivery_date_key DATE NOT NULL,
-            order_approved_date_key DATE NOT NULL,
-            min_shipping_limit_date_key DATE NOT NULL,
-            max_shipping_limit_date_key DATE NOT NULL
-        ) USING ICEBERG
-        """
-    )
     create_stg_orders_table(sc)
     fct_order_summary_table(sc)
-    logger.info("Finished ETL process for stg_orders")
+    logger.info("Finished ETL process for fact_order_summary")
 
 
 if __name__ == "__main__":

@@ -1,36 +1,29 @@
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
-from schema import get_seller_schema
+from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
-    read_csv,
+    read_parquet,
     read_from_iceberg_table,
     create_logger,
     load_data_to_iceberg_table,
 )
 
-logger = create_logger("dim_seller.etl")
+logger = create_logger("dim_seller")
 
 
-def create_stg_seller(spark):
+def create_stg_seller_table(spark: SparkSession) -> None:
     """Create the staging table for seller data
 
-    Parameters:
-        spark: SparkSession
+    This function creates a `stg_seller` table by
+    reading from a Parquet file, renaming columns and deduplicating the data.
 
-    Returns:
-        None
-
-    Steps:
-        1. Read the raw seller data from the CSV file in S3
-        2. Rename columns to match the target schema
-        3. Deduplicate records based on seller_id, keeping the latest updated_date
-        4. Select relevant columns for the staging table
-        5. Load the data into the Iceberg staging table 'stg_seller'
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
-    df = read_csv(
-        spark_context=spark, object_name="sellers.csv", schema=get_seller_schema()
-    )
+    df = read_parquet(spark_context=spark, object_name="sellers.parquet")
     df = (
         df.withColumnsRenamed(
             {
@@ -60,24 +53,18 @@ def create_stg_seller(spark):
     load_data_to_iceberg_table(df, table_name="stg_seller", mode="overwrite")
 
 
-def create_seller_scd2(spark):
+def create_seller_scd2(spark: SparkSession) -> None:
     """Create SCD2 records for seller dimension table
 
-    Parameters:
-        spark: SparkSession
+    This function creates a `tmp_dim_seller` table with Slowly Changing Dimension Type 2
+    (SCD2) records for the seller dimension table with changes from `stg_seller` table.
 
-    Returns:
-        None
-
-    Steps:
-        1. Read the staging table 'stg_seller' and dimension table 'dim_seller'
-        2. Perform a full outer join on seller_id and is_current flag
-        3. Identify new and changed records based on address, state, and zip_code_prefix
-        4. Create new records with a new surrogate key, effective_from date, and is_current flag
-        5. Create expired records by updating the effective_to date and is_current flag
-        6. Union new and expired records
-        7. Load the data into a temporary Iceberg table 'tmp_dim_seller'
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
+
     stg_seller_table = read_from_iceberg_table(spark, "stg_seller")
     dim_seller_table = read_from_iceberg_table(spark, "dim_seller")
 
@@ -142,22 +129,18 @@ def create_seller_scd2(spark):
     load_data_to_iceberg_table(df, table_name="tmp_dim_seller", mode="overwrite")
 
 
-def create_seller_dim(spark):
-    """Merge SCD2 records into the dimension table
+def create_seller_dim_table(spark):
+    """Merge SCD2 records into the seller dimension table
 
-    Parameters:
-        spark: SparkSession
+    This function merges the SCD2 records from the `tmp_dim_seller` staging
+    table into `dim_seller` table.
 
-    Returns:
-        None
 
-    Steps:
-        1. Read the temporary table 'tmp_dim_seller' and dimension table 'dim_seller'
-        2. Perform a merge operation based on seller_sk and is_current flag
-        3. Update existing records with new effective_to date and is_current flag
-        4. Insert new records into the dimension table
+    Parameters
+    ----------
+    spark : SparkSession
+        Spark session for the ETL process
     """
-
     spark.sql("""
         MERGE INTO dim_seller AS target
         USING tmp_dim_seller AS src
@@ -167,31 +150,16 @@ def create_seller_dim(spark):
                 target.effective_to = src.effective_to,
                 target.is_current = src.is_current
         WHEN NOT MATCHED THEN
-            INSERT (seller_sk, seller_id, address, state, zip_code_prefix, effective_from, effective_to, is_current)
-            VALUES (src.seller_sk, src.seller_id, src.address, src.state, src.zip_code_prefix, src.effective_from, src.effective_to, src.is_current)
+            INSERT *
     """)
 
 
 def run_etl():
     logger.info("Running ETL process for stg_seller")
     sc = get_or_create_spark_session()
-    sc.sql(
-        """
-        CREATE OR REPLACE TABLE dim_seller (
-            seller_sk STRING NOT NULL,
-            seller_id STRING NOT NULL,
-            address STRING NOT NULL,
-            state STRING NOT NULL,
-            zip_code_prefix STRING NOT NULL,
-            effective_from DATE NOT NULL,
-            effective_to DATE,
-            is_current BOOLEAN NOT NULL
-        ) USING ICEBERG
-        """
-    )
-    create_stg_seller(sc)
+    create_stg_seller_table(sc)
     create_seller_scd2(sc)
-    create_seller_dim(sc)
+    create_seller_dim_table(sc)
     logger.info("Finished ETL process for stg_seller")
 
 

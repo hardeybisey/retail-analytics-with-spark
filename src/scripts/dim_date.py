@@ -8,7 +8,7 @@ start_date = "2020-01-01"
 end_date = "2030-12-31"
 
 
-def run_etl():
+def run_etl() -> None:
     logger.info("Creating date dimension table")
     sc = get_or_create_spark_session()
 

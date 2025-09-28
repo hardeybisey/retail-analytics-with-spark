@@ -2,10 +2,11 @@ import logging
 
 from pyspark.sql import DataFrame as SparkDataFrame
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType
+# from pyspark.sql.types import StructType
 
 
 def create_logger(name: str) -> logging.Logger:
+    """Create custom logger for the ETL process"""
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
     if not logger.hasHandlers():
@@ -18,32 +19,59 @@ def create_logger(name: str) -> logging.Logger:
     return logger
 
 
-logger = create_logger("retail-analytics.utils")
+logger = create_logger("retail-analytics-with-spark")
 
 
 def get_or_create_spark_session(
     app_name: str = "Retail Analytics with Spark", config: dict = {}
 ) -> SparkSession:
+    """Get or create a Spark session
+
+    Parameters
+    ----------
+    app_name : str, optional
+        Application name for the Spark session, by default "Retail Analytics with Spark"
+    config : dict, optional
+        Configuration settings for the Spark session, by default {}
+
+    Returns
+    -------
+    SparkSession
+        The created or existing Spark session
+    """
     logger.info("Creating Spark session")
-
-    sc = SparkSession.builder.appName(app_name).getOrCreate()
+    sc = SparkSession.builder.appName(app_name)
     for key, value in config.items():
-        sc.conf.set(key, value)
+        sc.config(key, value)
 
-    return sc
+    return sc.getOrCreate()
 
 
-def read_csv(
+def read_parquet(
     spark_context: SparkSession,
     object_name: str,
-    schema: StructType,
-    s3_bucket: str = "csv-input",
+    s3_bucket: str = "demo-bucket",
 ) -> SparkDataFrame:
-    "Extract the raw data from the CSV file"
+    """Read a Parquet file from S3
+
+    This function reads a Parquet file from S3 and returns a Spark DataFrame.
+
+    Parameters
+    ----------
+    spark_context : SparkSession
+        Spark session for the ETL process
+    object_name : str
+        Name of the Parquet file to read
+    s3_bucket : str, optional
+        Name of the S3 bucket, by default "demo-bucket"
+
+    Returns
+    -------
+    SparkDataFrame
+        The Spark DataFrame containing the data from the Parquet file
+    """
     logger.info(f"Extracting raw data from s3a://{s3_bucket}/{object_name}")
-    data = spark_context.read.csv(
-        f"s3a://{s3_bucket}/{object_name}", header=True, schema=schema
-    )
+    data = spark_context.read.parquet(f"s3a://{s3_bucket}/{object_name}")
     return data
 
 
@@ -52,7 +80,19 @@ def load_data_to_iceberg_table(
     table_name: str,
     mode: str = "overwrite",
 ) -> None:
-    "Load the data into the Iceberg table"
+    """Load data into an Iceberg table
+
+    This function loads data from a Spark DataFrame into an Iceberg table.
+
+    Parameters
+    ----------
+    df : SparkDataFrame
+        The Spark DataFrame containing the data to load
+    table_name : str
+        The name of the Iceberg table to load data into
+    mode : str, optional
+        The write mode for the data load, by default "overwrite"
+    """
     logger.info(f"Writing data to Iceberg table {table_name}")
     df.write.mode(mode).saveAsTable(table_name)
 
@@ -60,7 +100,22 @@ def load_data_to_iceberg_table(
 def read_from_iceberg_table(
     spark_context: SparkSession, table_name: str
 ) -> SparkDataFrame:
-    "Read the data from the Iceberg table"
+    """Read data from an Iceberg table
+
+    This function reads data from an Iceberg table and returns a Spark DataFrame.
+
+    Parameters
+    ----------
+    spark_context : SparkSession
+        Spark session for the ETL process
+    table_name : str
+        Name of the Iceberg table to read data from
+
+    Returns
+    -------
+    SparkDataFrame
+        The Spark DataFrame containing the data from the Iceberg table
+    """
     logger.info(f"Reading data from Iceberg table {table_name}")
     df = spark_context.read.table(table_name)
     return df

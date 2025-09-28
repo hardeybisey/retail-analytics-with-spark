@@ -2,13 +2,16 @@
 This script creates dimension and fact tables using Apache Iceberg in a Spark environment.
 """
 
-from utils import create_logger, get_or_create_spark_session
+import logging
+from pyspark.sql import SparkSession
 
-logger = create_logger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 
-def dim_customer(spark):
-    """Create the dim_customer table with SCD Type 2 implementation"""
+def dim_customer(spark: SparkSession):
+    "Create the dim_customer table with SCD Type 2 implementation"
     logger.info("Creating dim_customer table")
     spark.sql(
         """
@@ -27,7 +30,7 @@ def dim_customer(spark):
 
 
 def dim_seller(spark):
-    """Create the dim_seller table with SCD Type 2 implementation"""
+    "Create the dim_seller table with SCD Type 2 implementation"
     logger.info("Creating dim_seller table")
     spark.sql(
         """
@@ -45,8 +48,8 @@ def dim_seller(spark):
     )
 
 
-def dim_product(spark):
-    """Create the dim_product table with SCD Type 2 implementation"""
+def dim_product(spark: SparkSession):
+    "Create the dim_product table with SCD Type 2 implementation"
     logger.info("Creating dim_product table")
     spark.sql(
         """
@@ -69,8 +72,8 @@ def dim_product(spark):
     )
 
 
-def fct_order_summary(spark):
-    """Create the fct_order_summary fact table"""
+def fct_order_summary(spark: SparkSession):
+    "Create the fct_order_summary fact table"
     logger.info("Creating fct_order_summary table")
     spark.sql(
         """
@@ -94,8 +97,8 @@ def fct_order_summary(spark):
     )
 
 
-def fct_order_items(spark):
-    """Create the fct_order_items fact table"""
+def fct_order_items(spark: SparkSession):
+    "Create the fct_order_items fact table"
     logger.info("Creating fct_order_items table")
     spark.sql(
         """
@@ -115,7 +118,7 @@ def fct_order_items(spark):
 
 
 if __name__ == "__main__":
-    spark = get_or_create_spark_session()
-    tables = [dim_customer, dim_seller, dim_product]
+    spark = SparkSession.builder.appName("Iceberg Migrations").getOrCreate()
+    tables = [dim_customer, dim_seller, dim_product, fct_order_summary, fct_order_items]
     for table in tables:
         table(spark)

@@ -10,29 +10,66 @@ For other stacks, check the following projects:
 
 ---
 
-## Project Technology Stack
+## Technology Stack
 * [Docker](https://docs.docker.com/engine/install/)
 * [Spark](https://spark.apache.org/)
 * [Minio](https://www.min.io/)
 * [Iceberg](https://iceberg.apache.org/)
 * [Airflow](https://airflow.apache.org/)
+* [Terraform](https://airflow.apache.org/)
+* [AWS Glue](https://airflow.apache.org/)
 
 ---
-## Architecture
-
-Airflow:
-Icerberg:
-Spark:
-Minio:
+## Architecture Overview
+[Image]
 
 ---
-###
-Solution Elements
-Element	Purpose
-Architecture	High-level overview and structure
-CI/CD (GitHub Actions)	Automates code deployment and infrastructure updates
-Data Processing (PySpark) Simulates realistic shipping/logistics datasets and processing
-Infrastructure (Terraform) Automates cloud setup (IAM, S3, networking)
-Orchestration (Kestra)	Manages data pipeline workflows
+## Key Features
+- **Scalable Big Data Processing Platform**
+- **Modular and Maintainable Architecture**
+- **Automated Data Pipelines**
+- **Monitoring and Logging**
+- **CI/CD Automation**
+- **Production-Ready Setup**
 
-### System Requirements
+
+## Best Practices
+- **Infrastructure as Code (IaC):**
+- **Modular Code Structure:**
+- **Environment Isolation:**
+
+### Local Setup Instructions
+
+## Prerequisites
+* Docker
+* Docker Compose
+
+## Environment Setup
+1. clone repo
+2. cd into repo
+3. create a .venv file
+4. update environment variables
+
+## start services
+```bash
+# create shared docker network between spark and airflow worker
+docker network create shared-network
+
+# start spark services
+docker compose -f docker-compose.spark.yml up -d
+
+# start airflow services
+docker compose -f docker-compose.airflow.yml up -d
+```
+
+# navigate to
+``` bash
+localhost: spark master ui
+locahost: spark history server
+localhost: airflow ui
+localhost: celery flower
+```
+
+# cleanup airflow and spark services
+docker compose -f docker-compose.airflow.yml down -v
+docker compose -f docker-compose.spark.yml down -v

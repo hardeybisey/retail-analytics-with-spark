@@ -1,29 +1,30 @@
 ---
 x-airflow-common:
   &airflow-common
-  build: docker/airflow/
-  # env_file:
-    #- .env
-
+  # build: docker/airflow/
+  image: iadebisi/airflow-spark
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${PG_USER}:${PG_PASS}@postgres/${AIRFLOW_DB}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${PG_USER}:${PG_PASS}@postgres/${AIRFLOW_DB}
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
-    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__FERNET_KEY: 'myrandomkey'
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://api-server:8080/execution/'
+    AIRFLOW__API__BASE_URL: http://api-server:8080
+    AIRFLOW__API__SECRET_KEY: 'myrandomkey'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+  user: "${AIRFLOW_UID}:0"
   volumes:
-    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
-    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
-    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
-    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
-  user: "${AIRFLOW_UID:-50000}:0"
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/config:/opt/airflow/config
+    - ./airflow/plugins:/opt/airflow/plugins
+
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -31,17 +32,20 @@ x-airflow-common:
     postgres:
       condition: service_healthy
 
+name: airflow
 services:
   postgres:
     image: postgres:16
+    networks:
+        airflow-net:
     environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASS}
+      POSTGRES_DB: ${AIRFLOW_DB}
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
+      test: ["CMD", "pg_isready", "-U", "${PG_USER}"]
       interval: 10s
       retries: 5
       start_period: 5s
@@ -51,6 +55,8 @@ services:
     image: redis:7.2-bookworm
     expose:
       - 6379
+    networks:
+        airflow-net:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -61,6 +67,8 @@ services:
 
   api-server:
     <<: *airflow-common
+    networks:
+        airflow-net:
     command: api-server
     ports:
       - "8080:8080"
@@ -73,13 +81,13 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
+      init:
         condition: service_completed_successfully
-    networks:
-      - shared-network
 
   scheduler:
     <<: *airflow-common
+    networks:
+        airflow-net:
     command: scheduler
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
@@ -90,13 +98,13 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
+      init:
         condition: service_completed_successfully
-    networks:
-      - shared-network
 
   dag-processor:
     <<: *airflow-common
+    networks:
+        airflow-net:
     command: dag-processor
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
@@ -107,13 +115,26 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
+      init:
         condition: service_completed_successfully
-    networks:
-      - shared-network
 
   worker:
     <<: *airflow-common
+    container_name: airflow-worker
+    ports:
+      - "4045:4040"
+    env_file:
+      - .env
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/config:/opt/airflow/config
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./docker/spark/conf:/opt/spark/conf
+      - ./src/scripts:/opt/airflow/scripts
+    networks:
+      airflow-net:
+      shared-network:
     command: celery worker
     healthcheck:
       test:
@@ -125,18 +146,22 @@ services:
       start_period: 30s
     environment:
       <<: *airflow-common-env
+      SPARK_DRIVER_HOST: airflow-worker
+
       DUMB_INIT_SETSID: "0"
     restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-apiserver:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
+    # depends_on:
+    #   <<: *airflow-common-depends-on
+    #   api-server:
+    #     condition: service_healthy
+    #   init:
+    #     condition: service_completed_successfully
 
 
   triggerer:
     <<: *airflow-common
+    networks:
+        airflow-net:
     command: triggerer
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
@@ -147,68 +172,49 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
+      init:
         condition: service_completed_successfully
-    networks:
-      - shared-network
 
   init:
     <<: *airflow-common
+    networks:
+        airflow-net:
     entrypoint: /bin/bash
     command:
       - -c
       - |
         echo "Creating missing opt dirs if missing:"
         mkdir -v -p /opt/airflow/{logs,dags,plugins,config}
-        echo "Airflow version:"
-        /entrypoint airflow version
-        echo "Files in shared volumes:"
-        ls -la /opt/airflow/{logs,dags,plugins,config}
-        echo "Running airflow config list to create default config file if missing."
-        /entrypoint airflow config list >/dev/null
         echo "Files in shared volumes:"
         ls -la /opt/airflow/{logs,dags,plugins,config}
         echo "Change ownership of files in /opt/airflow to ${AIRFLOW_UID}:0"
         chown -R "${AIRFLOW_UID}:0" /opt/airflow/
         echo "Change ownership of files in shared volumes to ${AIRFLOW_UID}:0"
         chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config}
-        echo "Files in shared volumes:"
-        ls -la /opt/airflow/{logs,dags,plugins,config}
-
-
-        # echo "Add/Update ClickHouse connection"
-        # airflow connections add "$CLICKHOUSE_CONN_NAME" \
-        #   --conn-uri "clickhouse://$CLICKHOUSE_USER:$CLICKHOUSE_PASSWORD@$CLICKHOUSE_HOST:$CLICKHOUSE_PORT/$CLICKHOUSE_DB"
-        # echo
-        # echo "Add/Update MinIO connection"
-        # airflow connections add "$MINIO_CONN_NAME" \
-        #   --conn-type     'aws' \
-        #   --conn-login    "$MINIO_ROOT_USER" \
-        #   --conn-password "$MINIO_ROOT_PASSWORD" \
-        #   --conn-extra   '{"host": "http://minio:9000"}'
-        # echo
-        # echo "Add/Update Spark connection"
-        # airflow connections add "$SPARK_CONN_NAME" \
-        #   --conn-type "spark" \
-        #   --conn-host "spark://spark-master" \
-        #   --conn-port "7077"
-        # echo
-        # echo "Done."
-        # exit 0;
+        echo "Add Spark connection"
+        /entrypoint airflow connections add "$SPARK_CONN_NAME" \
+          --conn-type "spark" \
+          --conn-host "spark://spark-master" \
+          --conn-port "7077"
+        echo
+        echo "Done."
+        exit 0;
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USER}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASS}
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
 
   flower:
     <<: *airflow-common
+    networks:
+        airflow-net:
     command: celery flower
-    profiles:
-      - debug
+    # profiles:
+    #   - debug
     ports:
       - "5555:5555"
     healthcheck:
@@ -220,11 +226,13 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      airflow-init:
+      init:
         condition: service_completed_successfully
 
 
 networks:
+  airflow-net:
+    driver: bridge
   shared-network:
     driver: bridge
     external: true

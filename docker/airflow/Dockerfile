@@ -1,49 +1,47 @@
 FROM apache/airflow:3.1.0-python3.11
 
+RUN pip install --no-cache-dir apache-airflow-providers-apache-spark==5.3.2
+
 USER root
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      sudo \
-      curl \
-      vim \
-      unzip \
-      openjdk-17-jdk \
-      build-essential \
-      software-properties-common \
-      ssh && \
+    curl \
+    openjdk-17-jdk &&\
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+ENV SPARK_HOME="/opt/spark"
+ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH
+
 ENV SPARK_VERSION=3.5.6
-ENV SPARK_MAJOR_VERSION=3.5
-ENV ICEBERG_VERSION=1.9.0
-ENV HADOOP_AWS_VERSION=3.3.4
-ENV AWS_SDK_VERSION=1.12.466
+ARG SPARK_MAJOR_VERSION=3.5
+ARG HADOOP_AWS_VERSION=3.3.4
+ARG AWS_SDK_VERSION=1.12.466
+ARG ICEBERG_VERSION=1.9.0
+ARG SCALA_VERSION=2.12
 
+# Creating Spark home dir..
+RUN mkdir -p ${SPARK_HOME}/jars
 
-# # Download spark
-# RUN mkdir -p ${SPARK_HOME} \
-#  && curl https://dlcdn.apache.org/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \
-#  && tar xvzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
-#  && rm -rf spark-${SPARK_VERSION}-bin-hadoop3.tgz
+# Downloading Spark...
+ADD https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz /spark.tgz
+RUN tar -xvzf /spark.tgz --directory ${SPARK_HOME} --strip-components 1 && rm /spark.tgz
 
-# # Download AWS bundle
-# RUN curl -s https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_VERSION}/iceberg-aws-bundle-${ICEBERG_VERSION}.jar -Lo /opt/spark/jars/iceberg-aws-bundle-${ICEBERG_VERSION}.jar
+# Iceberg Spark Runtime
+ADD https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}/${ICEBERG_VERSION}/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar ${SPARK_HOME}/jars/
 
+# Iceberg AWS Bundle (Provides AWS SDK v2)
+ADD https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_VERSION}/iceberg-aws-bundle-${ICEBERG_VERSION}.jar ${SPARK_HOME}/jars/
 
-# Download Hadoop AWS jar
-RUN curl -sSL "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar" \
-    -o /opt/spark/jars/hadoop-aws-${HADOOP_AWS_VERSION}.jar
+# Hadoop S3A Connector (Provides the S3AFileSystem class)
+ADD https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar ${SPARK_HOME}/jars/
 
-# Download AWS Java SDK bundle jar
-RUN curl -sSL "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar" \
-    -o /opt/spark/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar
+# AWS SDK for Java v1 (Dependency for hadoop-aws.jar)
+ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar ${SPARK_HOME}/jars/
 
-ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
+RUN chown -R airflow ${SPARK_HOME}
 
 USER airflow
-
-COPY requirements.txt .
-
-RUN pip install -r requirements.txt

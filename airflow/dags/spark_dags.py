@@ -1,8 +1,10 @@
 from datetime import datetime
-
 from airflow import DAG
-from airflow.operators.empty import EmptyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
+# SPARK_CONN_NAME = os.environ["SPARK_CONN_NAME"]
+SPARK_CONN_NAME = "spark_conn"
 
 with DAG(
     dag_id="retail_model_etl",
@@ -10,34 +12,25 @@ with DAG(
     schedule="@daily",
     catchup=False,
 ) as dag:
-
     start = EmptyOperator(task_id="start")
     end = EmptyOperator(task_id="end")
 
     # --- Dimension tables ---
     dim_customers = SparkSubmitOperator(
         task_id="dim_customers",
-        application="/usr/local/airflow/dags/scripts/dim_customer.py",
-        conn_id="spark_cluster",
-        # verbose=True,
+        application="/opt/airflow/scripts/dim_customer.py",
+        conn_id=SPARK_CONN_NAME,
+        verbose=False,
         deploy_mode="client",
-        # driver_memory="512m",
-        # executor_memory="512m",
-        # executor_cores=1,
-        # num_executors=2,
         name="dim_customers_job",
-        packages=(
-            "org.apache.hadoop:hadoop-aws:3.3.4,"
-            "com.amazonaws:aws-java-sdk-bundle:1.12.466"
-        ),
         conf={
             "spark.executor.memory": "512m",
             "spark.executor.cores": "1",
             "spark.executor.instances": "2",
-            "spark.driver.memory": "512m",
-            "spark.driver.host": "etl_b8fc85-scheduler-1",
+            "spark.driver.memory": "1G",
         },
     )
+
     start >> dim_customers >> end
 
     # dim_sellers = SparkSubmitOperator(

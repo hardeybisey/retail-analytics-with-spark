@@ -1,3 +1,10 @@
+---
+x-spark-common:
+  &spark-common
+  # build: docker/spark/
+  image: iadebisi/iceberg-spark
+
+name: spark
 services:
   # data-gen:
   #   image: iadebisi/ecommerce-data-generator
@@ -10,8 +17,8 @@ services:
   #       - ./raw_input:/data
 
   spark-master:
+    <<: *spark-common
     container_name: spark-master
-    build: docker/spark/
     command: master
     environment:
       - SPARK_MODE=master
@@ -33,8 +40,6 @@ services:
       shared-network:
     depends_on:
       - minio
-    volumes:
-      - spark-events:/home/iceberg/spark-events
     deploy:
       resources:
         limits:
@@ -43,9 +48,9 @@ services:
 
 
   spark-worker-one:
-    build: docker/spark/
-    command: worker
+    <<: *spark-common
     container_name: spark-worker-one
+    command: worker
     environment:
       - SPARK_MODE=worker
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -62,13 +67,11 @@ services:
     networks:
       spark-net:
       shared-network:
-    volumes:
-      - spark-events:/home/iceberg/spark-events
 
   spark-worker-two:
-    build: docker/spark/
-    command: worker
+    <<: *spark-common
     container_name: spark-worker-two
+    command: worker
     environment:
       - SPARK_MODE=worker
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
@@ -85,75 +88,72 @@ services:
     networks:
       spark-net:
       shared-network:
-    volumes:
-      - spark-events:/home/iceberg/spark-events
 
-  spark-driver:
-    build: docker/spark/
-    command: tail -f /dev/null
-    container_name: spark-driver
-    environment:
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
-      - SPARK_MODE=driver
-      - SPARK_DRIVER_HOST=spark-driver
-      - SPARK_MASTER_URL=${SPARK_MASTER_URL}
-      - AWS_URL_ENDPOINT=${AWS_URL_ENDPOINT}
-    depends_on:
-      - spark-master
-      - spark-worker-one
-      - spark-worker-two
-    ports:
-      - "4040:4040"
-    networks:
-      spark-net:
-    volumes:
-      - spark-events:/home/iceberg/spark-events
-      - ./airflow/dags/scripts:/home/scripts
-    deploy:
-      resources:
-        limits:
-          cpus: 1
-          memory: 1G
+  # spark-driver:
+  #   <<: *spark-common
+  #   command: tail -f /dev/null
+  #   container_name: spark-driver
+  #   environment:
+  #     - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+  #     - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+  #     - AWS_REGION=${AWS_REGION}
+  #     - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
+  #     - SPARK_MODE=driver
+  #     - SPARK_DRIVER_HOST=spark-driver
+  #     - SPARK_MASTER_URL=${SPARK_MASTER_URL}
+  #     - AWS_URL_ENDPOINT=${AWS_URL_ENDPOINT}
+  #   depends_on:
+  #     - spark-master
+  #     - spark-worker-one
+  #     - spark-worker-two
+  #   ports:
+  #     - "4040:4040"
+  #   networks:
+  #     spark-net:
+  #     shared-network:
+  #   volumes:
+  #     - ./src/scripts:/home/scripts
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: 1
+  #         memory: 1G
 
-  spark-notebook:
-    build: docker/spark/
-    command: >
-      jupyter notebook
-      --ip=0.0.0.0
-      --NotebookApp.token=''
-      --NotebookApp.password=''
-      --port=8888
-      --no-browser
-      --allow-root
-    container_name: spark-notebook
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - SPARK_MODE=driver
-      - SPARK_DRIVER_HOST=spark-notebook
-      - SPARK_DRIVER_MEMORY=1G
-      - SPARK_DRIVER_CORES=1
-      - SPARK_EXECUTOR_MEMORY=500m
-      - SPARK_EXECUTOR_CORES=2
-      - SPARK_EXECUTOR_INSTANCES=4
-      - SPARK_PUBLIC_DNS=localhost
-    ports:
-      - "8888:8888"
-      - "4041:4040"
-    networks:
-      spark-net:
-    volumes:
-      - spark-events:/home/iceberg/spark-events
-      - ./notebooks:/home/iceberg/notebooks
-    deploy:
-      resources:
-        limits:
-          cpus: 1
-          memory: 1G
+  # spark-notebook:
+  #   <<: *spark-common
+  #   container_name: spark-notebook
+  #   command: >
+  #     jupyter notebook
+  #     --ip=0.0.0.0
+  #     --NotebookApp.token=''
+  #     --NotebookApp.password=''
+  #     --port=8888
+  #     --no-browser
+  #     --allow-root
+  #   environment:
+  #     - AWS_ACCESS_KEY_ID=admin
+  #     - AWS_SECRET_ACCESS_KEY=password
+  #     - AWS_REGION=us-east-1
+  #     - SPARK_MODE=driver
+  #     - SPARK_DRIVER_HOST=spark-notebook
+  #     - SPARK_DRIVER_MEMORY=1G
+  #     - SPARK_DRIVER_CORES=1
+  #     - SPARK_EXECUTOR_MEMORY=500m
+  #     - SPARK_EXECUTOR_CORES=2
+  #     - SPARK_EXECUTOR_INSTANCES=4
+  #     - SPARK_PUBLIC_DNS=localhost
+  #   ports:
+  #     - "8888:8888"
+  #     - "4041:4040"
+  #   networks:
+  #     spark-net:
+  #   volumes:
+  #     - ./notebooks:/home/iceberg/notebooks
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: 1
+  #         memory: 1G
 
   minio:
     image: minio/minio
@@ -173,6 +173,8 @@ services:
       - "9001:9001"
     networks:
       shared-network:
+        aliases:
+          - warehouse.minio
       spark-net:
         aliases:
           - warehouse.minio
@@ -185,7 +187,7 @@ services:
           cpus: 1
           memory: 2G
 
-  console:
+  minio-console:
     image: opens3/console:latest
     container_name: opens3-console
     ports:
@@ -198,7 +200,7 @@ services:
     depends_on:
       - minio
 
-  mc:
+  minio-client:
     image: minio/mc
     depends_on:
       minio:
@@ -220,6 +222,7 @@ services:
       mc mb --ignore-existing local/${S3_INPUTS_BUCKET};
       mc mb --ignore-existing local/${S3_WH_BUCKET};
       mc cp --recursive /tmp/data/*.parquet local/${S3_INPUTS_BUCKET}/;
+      echo "keep" | mc pipe local/${S3_LOGS_BUCKET}/spark-events/.keep;
       exit 0;
       "
     restart: "no"
@@ -238,6 +241,7 @@ services:
       - "8181:8181"
     networks:
       spark-net:
+      shared-network:
     depends_on:
       - minio
     deploy:
@@ -248,7 +252,6 @@ services:
 
 volumes:
   minio-data:
-  spark-events:
 
 networks:
   spark-net:

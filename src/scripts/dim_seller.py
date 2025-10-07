@@ -6,24 +6,27 @@ from utils import (
     read_parquet,
     read_from_iceberg_table,
     create_logger,
-    load_data_to_iceberg_table,
+    write_parquet,
 )
+import os
+
+S3_INPUTS_BUCKET = os.environ["S3_INPUTS_BUCKET"]
+S3_STG_BUCKET = os.environ["S3_STG_BUCKET"]
 
 logger = create_logger("dim_seller")
 
 
 def create_stg_seller_table(spark: SparkSession) -> None:
-    """Create the staging table for seller data
-
-    This function creates a `stg_seller` table by
-    reading from a Parquet file, renaming columns and deduplicating the data.
+    """Create a deduplicated staging table from raw seller data.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
-    df = read_parquet(spark_context=spark, object_name="sellers.parquet")
+    df = read_parquet(
+        spark_context=spark, file_name="sellers.parquet", s3_bucket=S3_INPUTS_BUCKET
+    )
     df = (
         df.withColumnsRenamed(
             {
@@ -50,47 +53,51 @@ def create_stg_seller_table(spark: SparkSession) -> None:
             "updated_date",
         )
     )
-    load_data_to_iceberg_table(df, table_name="stg_seller", mode="overwrite")
+    write_parquet(
+        data_frame=df, file_name="stg_seller.parquet", s3_bucket=S3_STG_BUCKET
+    )
 
 
 def create_seller_scd2(spark: SparkSession) -> None:
-    """Create SCD2 records for seller dimension table
-
-    This function creates a `tmp_dim_seller` table with Slowly Changing Dimension Type 2
-    (SCD2) records for the seller dimension table with changes from `stg_seller` table.
+    """Generate SCD2 records for the seller dimension.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
+    stg_seller_table = read_parquet(
+        spark_context=spark,
+        file_name="stg_seller.parquet",
+        s3_bucket=S3_STG_BUCKET,
+    )
+    dim_seller_table = read_from_iceberg_table(
+        spark_context=spark, table_name="dim_seller"
+    )
 
-    stg_seller_table = read_from_iceberg_table(spark, "stg_seller")
-    dim_seller_table = read_from_iceberg_table(spark, "dim_seller")
-
-    active_records = stg_seller_table.alias("ss").join(
-        dim_seller_table.alias("dc"),
+    active_records = stg_seller_table.alias("s").join(
+        dim_seller_table.alias("d"),
         on=[
-            F.col("ss.seller_id") == F.col("dc.seller_id"),
-            F.col("dc.is_current") == F.lit(True),
+            F.col("s.seller_id") == F.col("d.seller_id"),
+            F.col("d.is_current") == F.lit(True),
         ],
         how="fullouter",
     )
 
     common_filter = (
-        (F.col("dc.address") != F.col("ss.address"))
-        | (F.col("dc.state") != F.col("ss.state"))
-        | (F.col("dc.zip_code_prefix") != F.col("ss.zip_code_prefix"))
+        (F.col("d.address") != F.col("s.address"))
+        | (F.col("d.state") != F.col("s.state"))
+        | (F.col("d.zip_code_prefix") != F.col("s.zip_code_prefix"))
     )
 
     new_records = (
-        active_records.filter(F.col("dc.address").isNull() | common_filter)
+        active_records.filter(F.col("d.address").isNull() | common_filter)
         .select(
-            F.col("ss.seller_id"),
-            F.col("ss.address"),
-            F.col("ss.state"),
-            F.col("ss.zip_code_prefix"),
-            F.col("ss.created_date"),
+            F.col("s.seller_id"),
+            F.col("s.address"),
+            F.col("s.state"),
+            F.col("s.zip_code_prefix"),
+            F.col("s.created_date"),
         )
         .withColumns(
             {
@@ -107,14 +114,14 @@ def create_seller_scd2(spark: SparkSession) -> None:
     )
 
     expired_records = (
-        active_records.filter(F.col("dc.address").isNotNull() & common_filter)
+        active_records.filter(F.col("d.address").isNotNull() & common_filter)
         .select(
-            F.col("dc.seller_sk"),
-            F.col("dc.seller_id"),
-            F.col("dc.address"),
-            F.col("dc.state"),
-            F.col("dc.zip_code_prefix"),
-            F.col("dc.effective_from"),
+            F.col("d.seller_sk"),
+            F.col("d.seller_id"),
+            F.col("d.address"),
+            F.col("d.state"),
+            F.col("d.zip_code_prefix"),
+            F.col("d.effective_from"),
         )
         .withColumns(
             {
@@ -125,25 +132,29 @@ def create_seller_scd2(spark: SparkSession) -> None:
     )
 
     df = new_records.unionByName(expired_records)
+    write_parquet(
+        data_frame=df, file_name="tmp_dim_seller.parquet", s3_bucket=S3_STG_BUCKET
+    )
 
-    load_data_to_iceberg_table(df, table_name="tmp_dim_seller", mode="overwrite")
 
-
-def create_seller_dim_table(spark):
-    """Merge SCD2 records into the seller dimension table
-
-    This function merges the SCD2 records from the `tmp_dim_seller` staging
-    table into `dim_seller` table.
-
+def create_seller_dim_table(spark) -> None:
+    """Merge SCD2 records into the seller dimension table.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
+    tmp_dim_seller = read_parquet(
+        spark_context=spark,
+        file_name="tmp_dim_seller.parquet",
+        s3_bucket=S3_STG_BUCKET,
+    )
+    tmp_dim_seller.createOrReplaceTempView("tmp_dim_seller_view")
+
     spark.sql("""
         MERGE INTO dim_seller AS target
-        USING tmp_dim_seller AS src
+        USING tmp_dim_seller_view AS src
             ON target.seller_sk = src.seller_sk AND target.is_current = true
         WHEN MATCHED THEN
             UPDATE SET
@@ -155,6 +166,7 @@ def create_seller_dim_table(spark):
 
 
 def run_etl():
+    """Run the full ETL pipeline for the seller dimension."""
     logger.info("Running ETL process for stg_seller")
     sc = get_or_create_spark_session()
     create_stg_seller_table(sc)

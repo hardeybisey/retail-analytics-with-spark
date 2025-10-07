@@ -3,18 +3,20 @@ from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
     read_parquet,
-    load_data_to_iceberg_table,
+    write_parquet,
     read_from_iceberg_table,
     create_logger,
 )
+import os
+
+S3_INPUTS_BUCKET = os.environ["S3_INPUTS_BUCKET"]
+S3_STG_BUCKET = os.environ["S3_STG_BUCKET"]
 
 logger = create_logger("dim_product")
 
 
 def create_stg_product_table(spark: SparkSession) -> None:
-    """Create the staging table for product data
-
-    This function creates a `stg_product` table from both product and product category data read from Parquet files, renaming columns and deduplicating the data.
+    """Create a deduplicated staging table from raw product data.
 
     Parameters
     ----------
@@ -22,12 +24,12 @@ def create_stg_product_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     df_product = read_parquet(
-        spark_context=spark,
-        object_name="products.parquet",
+        spark_context=spark, file_name="products.parquet", s3_bucket=S3_INPUTS_BUCKET
     )
     df_product_category = read_parquet(
         spark_context=spark,
-        object_name="product_category.parquet",
+        file_name="product_category.parquet",
+        s3_bucket=S3_INPUTS_BUCKET,
     )
 
     df = df_product.join(
@@ -62,52 +64,56 @@ def create_stg_product_table(spark: SparkSession) -> None:
         "created_date",
         "updated_date",
     )
-
-    load_data_to_iceberg_table(df, table_name="stg_product", mode="overwrite")
+    write_parquet(
+        data_frame=df, file_name="stg_product.parquet", s3_bucket=S3_STG_BUCKET
+    )
 
 
 def create_product_scd2(spark: SparkSession) -> None:
-    """Create SCD2 records for product dimension table
-
-    This function creates a `tmp_dim_product` table with Slowly Changing Dimension Type 2
-    (SCD2) records for the product dimension table with changes from `stg_product` table.
+    """Generate SCD2 records for the product dimension.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
-    stg_product_table = read_from_iceberg_table(spark, "stg_product")
-    dim_product_table = read_from_iceberg_table(spark, "dim_product")
+    stg_product_table = read_parquet(
+        spark_context=spark,
+        file_name="stg_product.parquet",
+        s3_bucket=S3_STG_BUCKET,
+    )
+    dim_product_table = read_from_iceberg_table(
+        spark_context=spark, table_name="dim_product"
+    )
 
-    active_records = stg_product_table.alias("sc").join(
-        dim_product_table.alias("dc"),
+    active_records = stg_product_table.alias("s").join(
+        dim_product_table.alias("d"),
         on=[
-            F.col("sc.product_id") == F.col("dc.product_id"),
-            F.col("dc.is_current") == F.lit(True),
+            F.col("s.product_id") == F.col("d.product_id"),
+            F.col("d.is_current") == F.lit(True),
         ],
         how="fullouter",
     )
 
     common_filter = (
-        (F.col("dc.price") != F.col("sc.price"))
-        | (F.col("dc.category_name") != F.col("sc.category_name"))
-        | (F.col("dc.sub_category") != F.col("sc.sub_category"))
+        (F.col("d.price") != F.col("s.price"))
+        | (F.col("d.category_name") != F.col("s.category_name"))
+        | (F.col("d.sub_category") != F.col("s.sub_category"))
     )
 
     new_records = (
-        active_records.filter(F.col("dc.price").isNull() | common_filter)
+        active_records.filter(F.col("d.price").isNull() | common_filter)
         .select(
-            F.col("sc.product_id"),
-            F.col("sc.product_name"),
-            F.col("sc.price"),
-            F.col("sc.category_name"),
-            F.col("sc.sub_category"),
-            F.col("sc.size_label"),
-            F.col("sc.length_cm"),
-            F.col("sc.height_cm"),
-            F.col("sc.width_cm"),
-            F.col("sc.created_date"),
+            F.col("s.product_id"),
+            F.col("s.product_name"),
+            F.col("s.price"),
+            F.col("s.category_name"),
+            F.col("s.sub_category"),
+            F.col("s.size_label"),
+            F.col("s.length_cm"),
+            F.col("s.height_cm"),
+            F.col("s.width_cm"),
+            F.col("s.created_date"),
         )
         .withColumns(
             {
@@ -126,19 +132,19 @@ def create_product_scd2(spark: SparkSession) -> None:
     )
 
     expired_records = (
-        active_records.filter(F.col("dc.price").isNotNull() & common_filter)
+        active_records.filter(F.col("d.price").isNotNull() & common_filter)
         .select(
-            F.col("dc.product_sk").alias("product_sk"),
-            F.col("dc.product_id").alias("product_id"),
-            F.col("dc.product_name").alias("product_name"),
-            F.col("dc.category_name").alias("category_name"),
-            F.col("dc.sub_category").alias("sub_category"),
-            F.col("dc.price").alias("price"),
-            F.col("dc.size_label").alias("size_label"),
-            F.col("dc.length_cm").alias("length_cm"),
-            F.col("dc.height_cm").alias("height_cm"),
-            F.col("dc.width_cm").alias("width_cm"),
-            F.col("dc.effective_from").alias("effective_from"),
+            F.col("d.product_sk").alias("product_sk"),
+            F.col("d.product_id").alias("product_id"),
+            F.col("d.product_name").alias("product_name"),
+            F.col("d.category_name").alias("category_name"),
+            F.col("d.sub_category").alias("sub_category"),
+            F.col("d.price").alias("price"),
+            F.col("d.size_label").alias("size_label"),
+            F.col("d.length_cm").alias("length_cm"),
+            F.col("d.height_cm").alias("height_cm"),
+            F.col("d.width_cm").alias("width_cm"),
+            F.col("d.effective_from").alias("effective_from"),
         )
         .withColumns(
             {
@@ -149,25 +155,28 @@ def create_product_scd2(spark: SparkSession) -> None:
     )
 
     df = new_records.unionByName(expired_records)
-
-    load_data_to_iceberg_table(df, table_name="tmp_dim_product", mode="overwrite")
+    write_parquet(
+        data_frame=df, file_name="tmp_dim_product.parquet", s3_bucket=S3_STG_BUCKET
+    )
 
 
 def create_product_dim_table(spark: SparkSession) -> None:
-    """Merge SCD2 records into product dimension table
-
-    This function merges the SCD2 records from `tmp_dim_product` into the
-    `dim_product` table.
-
+    """Merge SCD2 records into the product dimension table.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
+    tmp_dim_product = read_parquet(
+        spark_context=spark,
+        file_name="tmp_dim_product.parquet",
+        s3_bucket=S3_STG_BUCKET,
+    )
+    tmp_dim_product.createOrReplaceTempView("tmp_dim_product_view")
     spark.sql("""
         MERGE INTO dim_product AS target
-        USING tmp_dim_product AS src
+        USING tmp_dim_product_view AS src
             ON target.product_sk = src.product_sk AND target.is_current = true
         WHEN MATCHED THEN
             UPDATE SET
@@ -179,6 +188,7 @@ def create_product_dim_table(spark: SparkSession) -> None:
 
 
 def run_etl():
+    """Run the full ETL pipeline for the product dimension."""
     logger.info("Starting ETL process for dim_product")
     sc = get_or_create_spark_session()
     create_stg_product_table(spark=sc)

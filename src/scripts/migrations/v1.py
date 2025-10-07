@@ -2,6 +2,9 @@
 This script creates dimension and fact tables using Apache Iceberg in a Spark environment.
 """
 
+# from pyspark.sql import SparkSession
+# from utils import get_or_create_spark_session, create_logger
+
 import logging
 from pyspark.sql import SparkSession
 
@@ -24,7 +27,13 @@ def dim_customer(spark: SparkSession):
             effective_from DATE NOT NULL,
             effective_to DATE,
             is_current BOOLEAN NOT NULL
-        ) USING ICEBERG
+        ) TBLPROPERTIES(
+            "write.delete.mode"="copy-on-write",
+            "write.update.mode"="merge-on-read",
+            "write.merge.mode"="merge-on-read",
+            "write.metadata.metrics.column.customer_id"="full",
+            "write.metadata.metrics.column.address"="none"
+        )
         """
     )
 
@@ -43,7 +52,7 @@ def dim_seller(spark):
             effective_from DATE NOT NULL,
             effective_to DATE,
             is_current BOOLEAN NOT NULL
-        ) USING ICEBERG
+        )
         """
     )
 
@@ -67,7 +76,7 @@ def dim_product(spark: SparkSession):
             effective_from DATE NOT NULL,
             effective_to DATE,
             is_current BOOLEAN NOT NULL
-        ) USING ICEBERG
+        )
         """
     )
 
@@ -92,7 +101,7 @@ def fct_order_summary(spark: SparkSession):
             order_approved_date_key DATE NOT NULL,
             min_shipping_limit_date_key DATE NOT NULL,
             max_shipping_limit_date_key DATE NOT NULL
-        ) USING ICEBERG
+        )
         """
     )
 
@@ -112,12 +121,14 @@ def fct_order_items(spark: SparkSession):
             freight_value DECIMAL(10, 2) NOT NULL,
             order_date_key DATE NOT NULL,
             shipping_limit_date_key DATE NOT NULL
-        ) USING ICEBERG
+        )
         """
     )
 
 
 if __name__ == "__main__":
+    # logger = create_logger("migrations")
+    # spark = get_or_create_spark_session()
     spark = SparkSession.builder.appName("Iceberg Migrations").getOrCreate()
     tables = [dim_customer, dim_seller, dim_product, fct_order_summary, fct_order_items]
     for table in tables:

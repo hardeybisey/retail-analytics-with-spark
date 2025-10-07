@@ -9,6 +9,7 @@ end_date = "2030-12-31"
 
 
 def run_etl() -> None:
+    """Create a  date dimension table."""
     logger.info("Creating date dimension table")
     sc = get_or_create_spark_session()
 
@@ -53,7 +54,7 @@ def run_etl() -> None:
         "is_weekend",
     )
 
-    load_data_to_iceberg_table(df=date_dim, table_name="dim_date")
+    load_data_to_iceberg_table(data_frame=date_dim, table_name="dim_date")
     logger.info("Finished creating date dimension table")
 
 

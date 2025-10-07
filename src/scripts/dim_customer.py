@@ -3,20 +3,22 @@ from pyspark.sql.window import Window
 from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
-    load_data_to_iceberg_table,
     read_parquet,
+    write_parquet,
     create_logger,
     read_from_iceberg_table,
 )
+import os
+
+S3_INPUTS_BUCKET = os.environ["S3_INPUTS_BUCKET"]
+S3_STG_BUCKET = os.environ["S3_STG_BUCKET"]
+
 
 logger = create_logger("dim_customer")
 
 
 def create_stg_customer_table(spark: SparkSession) -> None:
-    """Create the staging table for customer data
-
-    This function creates a `stg_customer` table by
-    reading from a Parquet file, renaming columns and deduplicating the data.
+    """Create a deduplicated staging table from raw customer data.
 
     Parameters
     ----------
@@ -24,7 +26,9 @@ def create_stg_customer_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
 
-    df = read_parquet(spark_context=spark, object_name="customers.parquet")
+    df = read_parquet(
+        spark_context=spark, file_name="customers.parquet", s3_bucket=S3_INPUTS_BUCKET
+    )
     df = (
         df.withColumnsRenamed(
             {
@@ -51,46 +55,49 @@ def create_stg_customer_table(spark: SparkSession) -> None:
             "updated_date",
         )
     )
-    load_data_to_iceberg_table(df, table_name="stg_customer", mode="overwrite")
+    write_parquet(data_frame=df, file_name="customers.parquet", s3_bucket=S3_STG_BUCKET)
 
 
 def create_customer_scd2(spark: SparkSession) -> None:
-    """Create SCD2 records for customer dimension table
-
-    This function creates a `tmp_dim_customer` table with Slowly Changing Dimension Type 2
-    (SCD2) records for the customer dimension table with changes from `stg_customer` table.
+    """Generate SCD2 records for the customer dimension.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
-    stg_customer_table = read_from_iceberg_table(spark, "stg_customer")
-    dim_customer_table = read_from_iceberg_table(spark, "dim_customer")
+    stg_customer_table = read_parquet(
+        spark_context=spark,
+        file_name="stg_customer.parquet",
+        s3_bucket=S3_STG_BUCKET,
+    )
+    dim_customer_table = read_from_iceberg_table(
+        spark_context=spark, table_name="dim_customer"
+    )
 
-    active_records = stg_customer_table.alias("sc").join(
-        dim_customer_table.alias("dc"),
+    active_records = stg_customer_table.alias("s").join(
+        dim_customer_table.alias("d"),
         on=[
-            F.col("sc.customer_id") == F.col("dc.customer_id"),
-            F.col("dc.is_current") == F.lit(True),
+            F.col("s.customer_id") == F.col("d.customer_id"),
+            F.col("d.is_current") == F.lit(True),
         ],
         how="fullouter",
     )
 
     common_filter = (
-        (F.col("dc.address") != F.col("sc.address"))
-        | (F.col("dc.state") != F.col("sc.state"))
-        | (F.col("dc.zip_code_prefix") != F.col("sc.zip_code_prefix"))
+        (F.col("d.address") != F.col("s.address"))
+        | (F.col("d.state") != F.col("s.state"))
+        | (F.col("d.zip_code_prefix") != F.col("s.zip_code_prefix"))
     )
 
     new_records = (
-        active_records.filter(F.col("dc.address").isNull() | common_filter)
+        active_records.filter(F.col("d.address").isNull() | common_filter)
         .select(
-            F.col("sc.customer_id"),
-            F.col("sc.address"),
-            F.col("sc.state"),
-            F.col("sc.zip_code_prefix"),
-            F.col("sc.created_date"),
+            F.col("s.customer_id"),
+            F.col("s.address"),
+            F.col("s.state"),
+            F.col("s.zip_code_prefix"),
+            F.col("s.created_date"),
         )
         .withColumns(
             {
@@ -109,14 +116,14 @@ def create_customer_scd2(spark: SparkSession) -> None:
     )
 
     expired_records = (
-        active_records.filter(F.col("dc.address").isNotNull() & common_filter)
+        active_records.filter(F.col("d.address").isNotNull() & common_filter)
         .select(
-            F.col("dc.customer_sk"),
-            F.col("dc.customer_id"),
-            F.col("dc.address"),
-            F.col("dc.state"),
-            F.col("dc.zip_code_prefix"),
-            F.col("dc.effective_from"),
+            F.col("d.customer_sk"),
+            F.col("d.customer_id"),
+            F.col("d.address"),
+            F.col("d.state"),
+            F.col("d.zip_code_prefix"),
+            F.col("d.effective_from"),
         )
         .withColumns(
             {
@@ -127,24 +134,28 @@ def create_customer_scd2(spark: SparkSession) -> None:
     )
 
     df = new_records.unionByName(expired_records)
-
-    load_data_to_iceberg_table(df, table_name="tmp_dim_customer", mode="overwrite")
+    write_parquet(
+        data_frame=df, file_name="tmp_dim_customer.parquet", s3_bucket=S3_STG_BUCKET
+    )
 
 
 def create_customer_dim_table(spark: SparkSession) -> None:
-    """Merge SCD2 records into the customer dimension table
-
-    This function merges the SCD2 records from the `tmp_dim_customer` staging
-    table into `dim_customer` table.
+    """Merge SCD2 records into the customer dimension table.
 
     Parameters
     ----------
     spark : SparkSession
         Spark session for the ETL process
     """
+    tmp_dim_customer = read_parquet(
+        spark_context=spark,
+        file_name="tmp_dim_customer.parquet",
+        s3_bucket=S3_STG_BUCKET,
+    )
+    tmp_dim_customer.createOrReplaceTempView("tmp_dim_customer_view")
     spark.sql("""
         MERGE INTO dim_customer AS target
-        USING tmp_dim_customer AS src
+        USING tmp_dim_customer_view AS src
             ON target.customer_sk = src.customer_sk AND target.is_current = true
         WHEN MATCHED THEN
             UPDATE SET
@@ -155,13 +166,14 @@ def create_customer_dim_table(spark: SparkSession) -> None:
     """)
 
 
-def run_etl():
-    logger.info("Running ETL process for stg_customer")
+def run_etl() -> None:
+    """Run the full ETL pipeline for the customer dimension."""
+    logger.info("Running ETL process for dim_customer")
     sc = get_or_create_spark_session()
     create_stg_customer_table(sc)
     create_customer_scd2(sc)
     create_customer_dim_table(sc)
-    logger.info("Finished ETL process for stg_customer")
+    logger.info("Finished ETL process for dim_customer")
 
 
 if __name__ == "__main__":

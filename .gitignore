@@ -25,7 +25,8 @@ var/
 *.egg
 
 # PySpark logs
-*.log
+**log**
+
 
 # Virtual environments
 .env

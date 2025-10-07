@@ -7,14 +7,15 @@ USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
-    openjdk-17-jdk &&\
+    iputils-ping \
+    openjdk-17-jdk && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 ENV SPARK_HOME="/opt/spark"
 ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH
+# ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH
 
 ENV SPARK_VERSION=3.5.6
 ARG SPARK_MAJOR_VERSION=3.5

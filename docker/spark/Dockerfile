@@ -4,6 +4,7 @@ FROM python:3.11-bullseye
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
+    iputils-ping \
     openjdk-17-jdk &&\
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -11,7 +12,7 @@ RUN apt-get update && \
 ENV SPARK_HOME="/opt/spark"
 ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH
+# ENV PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH
 
 ENV SPARK_VERSION=3.5.6
 ARG SPARK_MAJOR_VERSION=3.5
@@ -39,8 +40,10 @@ ADD https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VER
 # AWS SDK for Java v1 (Dependency for hadoop-aws.jar)
 ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar ${SPARK_HOME}/jars/
 
+# Install python dev dependencies
+# RUN pip install --no-cache-dir jupyter==1.1.1 pyiceberg[pyarrow,duckdb,pandas]==0.9.1
 
-COPY conf/* ${SPARK_HOME}/conf/
+# COPY conf/* ${SPARK_HOME}/conf/
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

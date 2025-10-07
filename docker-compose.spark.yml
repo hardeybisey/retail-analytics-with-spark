@@ -3,6 +3,10 @@ x-spark-common:
   &spark-common
   # build: docker/spark/
   image: iadebisi/iceberg-spark
+  env_file:
+    - .env
+  volumes:
+    - ./docker/spark/conf:/opt/spark/conf
 
 name: spark
 services:
@@ -21,16 +25,13 @@ services:
     container_name: spark-master
     command: master
     environment:
-      - SPARK_MODE=master
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
-      - SPARK_SSL_ENABLED=no
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_MASTER_HOST=0.0.0.0
+      # <<: *spark-common-env
+      SPARK_MODE: master
+      SPARK_SSL_ENABLED: no
+      SPARK_RPC_AUTHENTICATION_ENABLED: no
+      SPARK_RPC_ENCRYPTION_ENABLED: no
+      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+      SPARK_MASTER_HOST: 0.0.0.0
     ports:
       - "7077:7077"       # Spark master port
       - "8081:8080"       # Spark Master UI
@@ -38,13 +39,14 @@ services:
     networks:
       spark-net:
       shared-network:
+        # ipv4_address: 172.80.0.10
     depends_on:
       - minio
-    deploy:
-      resources:
-        limits:
-          cpus: 1
-          memory: 512m
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: 1
+    #       memory: 512m
 
 
   spark-worker-one:
@@ -52,14 +54,10 @@ services:
     container_name: spark-worker-one
     command: worker
     environment:
-      - SPARK_MODE=worker
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
-      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
-      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
-      - SPARK_MASTER_URL=${SPARK_MASTER_URL}
+      # <<: *spark-common-env
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 2G
     depends_on:
       - spark-master
     ports:
@@ -67,20 +65,22 @@ services:
     networks:
       spark-net:
       shared-network:
+        # ipv4_address: 172.80.0.11
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: 2
+    #       memory: 2G
 
   spark-worker-two:
     <<: *spark-common
     container_name: spark-worker-two
     command: worker
     environment:
-      - SPARK_MODE=worker
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - SPARK_WORKER_CORES=${SPARK_WORKER_CORES}
-      - SPARK_WORKER_MEMORY=${SPARK_WORKER_MEMORY}
-      - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
-      - SPARK_MASTER_URL=${SPARK_MASTER_URL}
+      # <<: *spark-common-env
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 6
+      SPARK_WORKER_MEMORY: 6G
     depends_on:
       - spark-master
     ports:
@@ -88,36 +88,13 @@ services:
     networks:
       spark-net:
       shared-network:
+        # ipv4_address: 172.80.0.12
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: 6
+    #       memory: 6G
 
-  # spark-driver:
-  #   <<: *spark-common
-  #   command: tail -f /dev/null
-  #   container_name: spark-driver
-  #   environment:
-  #     - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-  #     - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-  #     - AWS_REGION=${AWS_REGION}
-  #     - SPARK_PUBLIC_DNS=${SPARK_PUBLIC_DNS}
-  #     - SPARK_MODE=driver
-  #     - SPARK_DRIVER_HOST=spark-driver
-  #     - SPARK_MASTER_URL=${SPARK_MASTER_URL}
-  #     - AWS_URL_ENDPOINT=${AWS_URL_ENDPOINT}
-  #   depends_on:
-  #     - spark-master
-  #     - spark-worker-one
-  #     - spark-worker-two
-  #   ports:
-  #     - "4040:4040"
-  #   networks:
-  #     spark-net:
-  #     shared-network:
-  #   volumes:
-  #     - ./src/scripts:/home/scripts
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: 1
-  #         memory: 1G
 
   # spark-notebook:
   #   <<: *spark-common
@@ -131,17 +108,9 @@ services:
   #     --no-browser
   #     --allow-root
   #   environment:
-  #     - AWS_ACCESS_KEY_ID=admin
-  #     - AWS_SECRET_ACCESS_KEY=password
-  #     - AWS_REGION=us-east-1
-  #     - SPARK_MODE=driver
-  #     - SPARK_DRIVER_HOST=spark-notebook
-  #     - SPARK_DRIVER_MEMORY=1G
-  #     - SPARK_DRIVER_CORES=1
-  #     - SPARK_EXECUTOR_MEMORY=500m
-  #     - SPARK_EXECUTOR_CORES=2
-  #     - SPARK_EXECUTOR_INSTANCES=4
-  #     - SPARK_PUBLIC_DNS=localhost
+  #     # <<: *spark-common-env
+  #     SPARK_MODE: driver
+  #     SPARK_DRIVER_HOST: spark-notebook
   #   ports:
   #     - "8888:8888"
   #     - "4041:4040"
@@ -149,11 +118,11 @@ services:
   #     spark-net:
   #   volumes:
   #     - ./notebooks:/home/iceberg/notebooks
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: 1
-  #         memory: 1G
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: 1
+    #       memory: 1G
 
   minio:
     image: minio/minio
@@ -165,27 +134,28 @@ services:
       retries: 3
       start_period: 10s
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
-      - MINIO_DOMAIN=${MINIO_DOMAIN}
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+      MINIO_DOMAIN: minio
     ports:
       - "9000:9000"
       - "9001:9001"
     networks:
       shared-network:
+        # ipv4_address: 172.80.0.13
         aliases:
-          - warehouse.minio
+          - ${S3_WH_BUCKET}.minio
       spark-net:
         aliases:
-          - warehouse.minio
+          - ${S3_WH_BUCKET}.minio
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
-    deploy:
-      resources:
-        limits:
-          cpus: 1
-          memory: 2G
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: 1
+    #       memory: 2G
 
   minio-console:
     image: opens3/console:latest
@@ -195,8 +165,8 @@ services:
     networks:
       spark-net:
     environment:
-      - CONSOLE_MINIO_SERVER=http://minio:9000
-      - CONSOLE_PORT=9090
+      CONSOLE_MINIO_SERVER: http://minio:9000
+      CONSOLE_PORT: 9090
     depends_on:
       - minio
 
@@ -208,8 +178,8 @@ services:
       # data-gen:
       #   condition: service_completed_successfully
     environment:
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     networks:
       spark-net:
     volumes:
@@ -221,37 +191,79 @@ services:
       mc mb --ignore-existing local/${S3_LOGS_BUCKET};
       mc mb --ignore-existing local/${S3_INPUTS_BUCKET};
       mc mb --ignore-existing local/${S3_WH_BUCKET};
+      mc mb --ignore-existing local/${S3_STG_BUCKET};
       mc cp --recursive /tmp/data/*.parquet local/${S3_INPUTS_BUCKET}/;
       echo "keep" | mc pipe local/${S3_LOGS_BUCKET}/spark-events/.keep;
       exit 0;
       "
     restart: "no"
 
+  # hive-metastore:
+  #   image: apache/hive:standalone-metastore-4.1.0
+  #   container_name: hive-metastore
+  #   environment:
+  #     SERVICE_NAME: metastore
+  #     DB_DRIVER: postgres
+  #     SERVICE_OPTS: >-
+  #       -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
+  #       -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/${HIVE_DB}
+  #       -Djavax.jdo.option.ConnectionUserName=${PG_USER}
+  #       -Djavax.jdo.option.ConnectionPassword=${PG_PASS}
+  #   ports:
+  #     - "9083:9083"
+  #   networks:
+  #     - spark-net
+  #     - shared-network
+  #   # depends_on:
+  #   #   - postgres
+  #   volumes:
+  #     - type: bind
+  #       source: ./postgresql-42.5.1.jar
+  #       target: /opt/hive/lib/postgres.jar
+
+  # postgres:
+  #   image: postgres:16
+  #   container_name: hive-postgres
+  #   environment:
+  #     POSTGRES_USER: ${PG_USER}
+  #     POSTGRES_PASSWORD: ${PG_PASS}
+  #     POSTGRES_DB: ${HIVE_DB}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - hive-db:/var/lib/postgresql/data
+  #   networks:
+  #     - spark-net
+  #     - shared-network
+
+
   iceberg-rest:
     image: tabulario/iceberg-rest
     container_name: iceberg-rest
     environment:
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - CATALOG_WAREHOUSE=s3://${S3_WH_BUCKET}/
-      - CATALOG_IO__IMPL=${CATALOG_IO__IMPL}
-      - CATALOG_S3_ENDPOINT=${CATALOG_S3_ENDPOINT}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      CATALOG_WAREHOUSE: s3://${S3_WH_BUCKET}/
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
     ports:
       - "8181:8181"
     networks:
       spark-net:
       shared-network:
+        # ipv4_address: 172.80.0.14
     depends_on:
       - minio
-    deploy:
-      resources:
-        limits:
-          cpus: 1
-          memory: 1G
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: 1
+    #       memory: 512m
 
 volumes:
   minio-data:
+  # hive-db:
 
 networks:
   spark-net:

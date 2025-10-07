@@ -3,6 +3,8 @@ x-airflow-common:
   &airflow-common
   # build: docker/airflow/
   image: iadebisi/airflow-spark
+  env_file:
+      - .env
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -13,8 +15,7 @@ x-airflow-common:
     AIRFLOW__CORE__FERNET_KEY: 'myrandomkey'
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
-    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://api-server:8080/execution/'
-    AIRFLOW__API__BASE_URL: http://api-server:8080
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     AIRFLOW__API__SECRET_KEY: 'myrandomkey'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
@@ -24,7 +25,6 @@ x-airflow-common:
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/config:/opt/airflow/config
     - ./airflow/plugins:/opt/airflow/plugins
-
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -65,7 +65,8 @@ services:
       start_period: 30s
     restart: always
 
-  api-server:
+  airflow-apiserver:
+    container_name: airflow-apiserver
     <<: *airflow-common
     networks:
         airflow-net:
@@ -81,10 +82,11 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      init:
+      airflow-init:
         condition: service_completed_successfully
 
-  scheduler:
+  airflow-scheduler:
+    container_name: airflow-scheduler
     <<: *airflow-common
     networks:
         airflow-net:
@@ -98,10 +100,11 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      init:
+      airflow-init:
         condition: service_completed_successfully
 
-  dag-processor:
+  airflow-dagprocessor:
+    container_name: airflow-dagprocessor
     <<: *airflow-common
     networks:
         airflow-net:
@@ -115,16 +118,14 @@ services:
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      init:
+      airflow-init:
         condition: service_completed_successfully
 
-  worker:
-    <<: *airflow-common
+  airflow-worker:
     container_name: airflow-worker
+    <<: *airflow-common
     ports:
-      - "4045:4040"
-    env_file:
-      - .env
+      - "4040:4040"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
@@ -135,6 +136,7 @@ services:
     networks:
       airflow-net:
       shared-network:
+        ipv4_address: 172.22.0.10
     command: celery worker
     healthcheck:
       test:
@@ -146,36 +148,38 @@ services:
       start_period: 30s
     environment:
       <<: *airflow-common-env
-      SPARK_DRIVER_HOST: airflow-worker
-
+      SPARK_DRIVER_HOST: 172.22.0.10
+      SPARK_MODE: driver
       DUMB_INIT_SETSID: "0"
-    restart: always
-    # depends_on:
-    #   <<: *airflow-common-depends-on
-    #   api-server:
-    #     condition: service_healthy
-    #   init:
-    #     condition: service_completed_successfully
-
-
-  triggerer:
-    <<: *airflow-common
-    networks:
-        airflow-net:
-    command: triggerer
-    healthcheck:
-      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
-      init:
+      airflow-apiserver:
+        condition: service_healthy
+      airflow-init:
         condition: service_completed_successfully
 
-  init:
+
+  # airflow-triggerer:
+  #   container_name: airflow-triggerer
+  #   <<: *airflow-common
+  #   networks:
+  #       airflow-net:
+  #   command: triggerer
+  #   healthcheck:
+  #     test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-init:
+  #       condition: service_completed_successfully
+
+  airflow-init:
+    container_name: airflow-init
     <<: *airflow-common
     networks:
         airflow-net:
@@ -208,26 +212,26 @@ services:
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
 
-  flower:
-    <<: *airflow-common
-    networks:
-        airflow-net:
-    command: celery flower
-    # profiles:
-    #   - debug
-    ports:
-      - "5555:5555"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      init:
-        condition: service_completed_successfully
+  # celery-flower:
+  #   <<: *airflow-common
+  #   networks:
+  #       airflow-net:
+  #   command: celery flower
+  #   # profiles:
+  #   #   - debug
+  #   ports:
+  #     - "5555:5555"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   restart: always
+  #   depends_on:
+  #     <<: *airflow-common-depends-on
+  #     airflow-init:
+  #       condition: service_completed_successfully
 
 
 networks:

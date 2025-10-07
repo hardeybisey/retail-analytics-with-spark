@@ -1,3 +1,0 @@
-# spark driver defaults
-SPARK_DRIVER_CORES=1
-SPARK_DRIVER_MEMORY=1G

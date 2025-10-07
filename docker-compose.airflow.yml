@@ -1,8 +1,7 @@
 ---
 x-airflow-common:
   &airflow-common
-  # build: docker/airflow/
-  image: iadebisi/airflow-spark
+  build: airflow
   env_file:
       - .env
   environment:
@@ -22,9 +21,7 @@ x-airflow-common:
   user: "${AIRFLOW_UID}:0"
   volumes:
     - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/logs:/opt/airflow/logs
     - ./airflow/config:/opt/airflow/config
-    - ./airflow/plugins:/opt/airflow/plugins
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -128,11 +125,12 @@ services:
       - "4040:4040"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/config:/opt/airflow/config
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./docker/spark/conf:/opt/spark/conf
-      - ./src/scripts:/opt/airflow/scripts
+      - ./spark/scripts:/opt/airflow/scripts
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
+      - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
+      - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
+      - ./spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar:/opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar
     networks:
       airflow-net:
       shared-network:
@@ -148,35 +146,14 @@ services:
       start_period: 30s
     environment:
       <<: *airflow-common-env
-      SPARK_DRIVER_HOST: 172.22.0.10
-      SPARK_MODE: driver
       DUMB_INIT_SETSID: "0"
     restart: always
-    depends_on:
-      <<: *airflow-common-depends-on
-      airflow-apiserver:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-
-
-  # airflow-triggerer:
-  #   container_name: airflow-triggerer
-  #   <<: *airflow-common
-  #   networks:
-  #       airflow-net:
-  #   command: triggerer
-  #   healthcheck:
-  #     test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 30s
-  #   restart: always
-  #   depends_on:
-  #     <<: *airflow-common-depends-on
-  #     airflow-init:
-  #       condition: service_completed_successfully
+    # depends_on:
+    #   <<: *airflow-common-depends-on
+    #   airflow-apiserver:
+    #     condition: service_healthy
+    #   airflow-init:
+    #     condition: service_completed_successfully
 
   airflow-init:
     container_name: airflow-init
@@ -196,10 +173,10 @@ services:
         echo "Change ownership of files in shared volumes to ${AIRFLOW_UID}:0"
         chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config}
         echo "Add Spark connection"
-        /entrypoint airflow connections add "$SPARK_CONN_NAME" \
+        /entrypoint airflow connections add "${SPARK_CONN_NAME}" \
           --conn-type "spark" \
-          --conn-host "spark://spark-master" \
-          --conn-port "7077"
+          --conn-host "${SPARK_CONN_HOST}" \
+          --conn-port "${SPARK_CONN_PORT}"
         echo
         echo "Done."
         exit 0;
@@ -211,27 +188,6 @@ services:
       _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASS}
       _PIP_ADDITIONAL_REQUIREMENTS: ''
     user: "0:0"
-
-  # celery-flower:
-  #   <<: *airflow-common
-  #   networks:
-  #       airflow-net:
-  #   command: celery flower
-  #   # profiles:
-  #   #   - debug
-  #   ports:
-  #     - "5555:5555"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 30s
-  #   restart: always
-  #   depends_on:
-  #     <<: *airflow-common-depends-on
-  #     airflow-init:
-  #       condition: service_completed_successfully
 
 
 networks:

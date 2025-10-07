@@ -1,13 +1,15 @@
 ---
 x-spark-common:
   &spark-common
-  # build: docker/spark/
-  image: iadebisi/iceberg-spark
+  image: apache/spark:3.5.6
   env_file:
     - .env
   volumes:
-    - ./docker/spark/conf:/opt/spark/conf
-
+    - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
+    - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
+    - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
+    - ./spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar:/opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar
 name: spark
 services:
   # data-gen:
@@ -23,14 +25,14 @@ services:
   spark-master:
     <<: *spark-common
     container_name: spark-master
-    command: master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master -p 7077
     environment:
-      # <<: *spark-common-env
       SPARK_MODE: master
       SPARK_SSL_ENABLED: no
       SPARK_RPC_AUTHENTICATION_ENABLED: no
       SPARK_RPC_ENCRYPTION_ENABLED: no
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+      SPARK_METRICS_ENABLED: yes
       SPARK_MASTER_HOST: 0.0.0.0
     ports:
       - "7077:7077"       # Spark master port
@@ -39,62 +41,40 @@ services:
     networks:
       spark-net:
       shared-network:
-        # ipv4_address: 172.80.0.10
     depends_on:
       - minio
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: 1
-    #       memory: 512m
-
 
   spark-worker-one:
     <<: *spark-common
     container_name: spark-worker-one
-    command: worker
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $SPARK_MASTER_URL
     environment:
-      # <<: *spark-common-env
       SPARK_MODE: worker
       SPARK_WORKER_CORES: 2
       SPARK_WORKER_MEMORY: 2G
     depends_on:
       - spark-master
     ports:
-      - "8082:8081" # Spark Worker UI
+      - "8082:8081"
     networks:
       spark-net:
       shared-network:
-        # ipv4_address: 172.80.0.11
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: 2
-    #       memory: 2G
 
   spark-worker-two:
     <<: *spark-common
     container_name: spark-worker-two
-    command: worker
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $SPARK_MASTER_URL
     environment:
-      # <<: *spark-common-env
       SPARK_MODE: worker
       SPARK_WORKER_CORES: 6
       SPARK_WORKER_MEMORY: 6G
     depends_on:
       - spark-master
     ports:
-      - "8083:8081" # Spark Worker UI
+      - "8083:8081"
     networks:
       spark-net:
       shared-network:
-        # ipv4_address: 172.80.0.12
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: 6
-    #       memory: 6G
-
 
   # spark-notebook:
   #   <<: *spark-common
@@ -142,7 +122,6 @@ services:
       - "9001:9001"
     networks:
       shared-network:
-        # ipv4_address: 172.80.0.13
         aliases:
           - ${S3_WH_BUCKET}.minio
       spark-net:
@@ -151,24 +130,7 @@ services:
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: 1
-    #       memory: 2G
 
-  minio-console:
-    image: opens3/console:latest
-    container_name: opens3-console
-    ports:
-      - "9090:9090"
-    networks:
-      spark-net:
-    environment:
-      CONSOLE_MINIO_SERVER: http://minio:9000
-      CONSOLE_PORT: 9090
-    depends_on:
-      - minio
 
   minio-client:
     image: minio/mc
@@ -198,72 +160,8 @@ services:
       "
     restart: "no"
 
-  # hive-metastore:
-  #   image: apache/hive:standalone-metastore-4.1.0
-  #   container_name: hive-metastore
-  #   environment:
-  #     SERVICE_NAME: metastore
-  #     DB_DRIVER: postgres
-  #     SERVICE_OPTS: >-
-  #       -Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver
-  #       -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/${HIVE_DB}
-  #       -Djavax.jdo.option.ConnectionUserName=${PG_USER}
-  #       -Djavax.jdo.option.ConnectionPassword=${PG_PASS}
-  #   ports:
-  #     - "9083:9083"
-  #   networks:
-  #     - spark-net
-  #     - shared-network
-  #   # depends_on:
-  #   #   - postgres
-  #   volumes:
-  #     - type: bind
-  #       source: ./postgresql-42.5.1.jar
-  #       target: /opt/hive/lib/postgres.jar
-
-  # postgres:
-  #   image: postgres:16
-  #   container_name: hive-postgres
-  #   environment:
-  #     POSTGRES_USER: ${PG_USER}
-  #     POSTGRES_PASSWORD: ${PG_PASS}
-  #     POSTGRES_DB: ${HIVE_DB}
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - hive-db:/var/lib/postgresql/data
-  #   networks:
-  #     - spark-net
-  #     - shared-network
-
-
-  iceberg-rest:
-    image: tabulario/iceberg-rest
-    container_name: iceberg-rest
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
-      CATALOG_WAREHOUSE: s3://${S3_WH_BUCKET}/
-      CATALOG_S3_ENDPOINT: http://minio:9000
-      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
-    ports:
-      - "8181:8181"
-    networks:
-      spark-net:
-      shared-network:
-        # ipv4_address: 172.80.0.14
-    depends_on:
-      - minio
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: 1
-    #       memory: 512m
-
 volumes:
   minio-data:
-  # hive-db:
 
 networks:
   spark-net:

@@ -26,6 +26,7 @@ var/
 
 # PySpark logs
 **log**
+spark/jars/*.jar
 
 
 # Virtual environments

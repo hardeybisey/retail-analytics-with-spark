@@ -5,13 +5,7 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 SPARK_CONN_NAME = os.environ["SPARK_CONN_NAME"]
-
-DEFAULT_CONF = {
-    "spark.executor.memory": "512m",
-    # "spark.executor.instances": "2",
-    "spark.driver.memory": "1G",
-    "spark.driver.bindAddress": "0.0.0.0",
-}
+DEPLOY_MODE = "client"
 
 
 with DAG(
@@ -21,8 +15,8 @@ with DAG(
     catchup=False,
     default_args={
         "conn_id": SPARK_CONN_NAME,
+        "deploy_mode": DEPLOY_MODE,
         "verbose": False,
-        "deploy_mode": "client",
     },
 ) as dag:
     start = EmptyOperator(task_id="start")
@@ -32,16 +26,7 @@ with DAG(
     run_migrations = SparkSubmitOperator(
         task_id="run_migrations",
         name="run_migrations_v1",
-        application="/opt/airflow/scripts/migrations/v1.py",
-        conf={
-            "spark.driver.memory": "512m",
-        },
-    )
-
-    dim_date = SparkSubmitOperator(
-        task_id="dim_date",
-        name="dim_date_job",
-        application="/opt/airflow/scripts/dim_date.py",
+        application="/opt/airflow/scripts/migrations_v1.py",
         conf={
             "spark.driver.memory": "512m",
         },
@@ -56,7 +41,6 @@ with DAG(
             "spark.driver.memory": "512m",
         },
     )
-    # start >> run_migrations >> [dim_customers] >> end
 
     dim_sellers = SparkSubmitOperator(
         task_id="dim_sellers",
@@ -87,20 +71,20 @@ with DAG(
     )
 
     # --- Fact table ---
-    fct_order_items = SparkSubmitOperator(
-        task_id="fct_order_items",
-        name="fct_order_item_job",
-        application="/opt/airflow/scripts/fct_order_items.py",
+    fact_order_items = SparkSubmitOperator(
+        task_id="fact_order_items",
+        name="fact_order_item_job",
+        application="/opt/airflow/scripts/fact_order_items.py",
         conf={
             "spark.executor.memory": "2G",
             "spark.executor.instances": "2",
         },
     )
 
-    fct_order_summary = SparkSubmitOperator(
-        task_id="fct_order_summary",
-        name="fct_order_summary_job",
-        application="/opt/airflow/scripts/fct_order_summary.py",
+    fact_order_summary = SparkSubmitOperator(
+        task_id="fact_order_summary",
+        name="fact_order_summary_job",
+        application="/opt/airflow/scripts/fact_order_summary.py",
         conf={
             "spark.executor.memory": "2G",
             "spark.executor.instances": "2",
@@ -108,13 +92,10 @@ with DAG(
     )
 
     # --- Set dependencies ---
+    start >> run_migrations
 
-    start >> [run_migrations, dim_date, stg_order_order_items]
+    run_migrations >> [stg_order_order_items, dim_customers, dim_sellers, dim_products]
 
-    dim_date >> [dim_customers, dim_sellers, dim_products]
+    [dim_sellers, dim_products, stg_order_order_items] >> fact_order_items >> end
 
-    [dim_sellers, dim_products, stg_order_order_items] >> fct_order_items
-
-    [dim_customers, stg_order_order_items] >> fct_order_summary
-
-    [fct_order_items, fct_order_summary] >> end
+    [dim_customers, stg_order_order_items] >> fact_order_summary >> end

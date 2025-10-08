@@ -6,7 +6,7 @@ x-spark-common:
   env_file:
     - .env
   volumes:
-    - ./spark/conf/x.conf:/opt/spark/conf/spark-defaults.conf
+    - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
     - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
     - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
@@ -38,7 +38,19 @@ services:
     ports:
       - "7077:7077"       # Spark master port
       - "8081:8080"       # Spark Master UI
-      - "18080:18080"   # History server UI
+      # - "18080:18080"   # History server UI
+    networks:
+      spark-net:
+      shared-network:
+    depends_on:
+      - minio
+
+  spark-history-server:
+    <<: *spark-common
+    container_name: spark-history-server
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
+    ports:
+      - "18080:18080"
     networks:
       spark-net:
       shared-network:

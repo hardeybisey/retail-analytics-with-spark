@@ -127,8 +127,7 @@ services:
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./spark/scripts:/opt/airflow/scripts
-      # - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-      - ./spark/conf/x.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
       - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
       - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
@@ -149,12 +148,12 @@ services:
       <<: *airflow-common-env
       DUMB_INIT_SETSID: "0"
     restart: always
-    # depends_on:
-    #   <<: *airflow-common-depends-on
-    #   airflow-apiserver:
-    #     condition: service_healthy
-    #   airflow-init:
-    #     condition: service_completed_successfully
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-apiserver:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
 
   airflow-init:
     container_name: airflow-init

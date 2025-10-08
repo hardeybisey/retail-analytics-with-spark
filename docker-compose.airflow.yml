@@ -121,12 +121,14 @@ services:
   airflow-worker:
     container_name: airflow-worker
     <<: *airflow-common
+    command: celery worker
     ports:
       - "4040:4040"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./spark/scripts:/opt/airflow/scripts
-      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      # - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./spark/conf/x.conf:/opt/spark/conf/spark-defaults.conf
       - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
       - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
       - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
@@ -135,7 +137,6 @@ services:
       airflow-net:
       shared-network:
         ipv4_address: 172.22.0.10
-    command: celery worker
     healthcheck:
       test:
         - "CMD-SHELL"

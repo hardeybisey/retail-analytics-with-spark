@@ -53,7 +53,7 @@ For other stacks, check the following projects:
 ## start services
 ```bash
 # create shared docker network between spark and airflow worker
-docker network create shared-network
+docker network create --subnet=172.22.0.0/16 shared-network
 
 # start spark services
 docker compose -f docker-compose.spark.yml up -d
@@ -73,3 +73,23 @@ localhost: celery flower
 # cleanup airflow and spark services
 docker compose -f docker-compose.airflow.yml down -v
 docker compose -f docker-compose.spark.yml down -v
+
+--master $SPARK_MASTER_URL
+
+spark-submit --executor-memory 1G \
+     --executor-cores 1 \
+     --total-executor-cores 1  \
+     /opt/airflow/scripts/test.py
+
+spark-submit --executor-memory 1G \
+     --executor-cores 1 \
+     --total-executor-cores 1  \
+     /opt/airflow/scripts/migrations_v1.py
+
+
+airflow url: http://localhost:8080/
+spark master url: http://localhost:8081/
+spark worker-1 url: http://localhost:8082/
+spark worker-2 url: http://localhost:8083/
+spark history-server: http://localhost:18080/
+minio s3 url: http://localhost:9001/

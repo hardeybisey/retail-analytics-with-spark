@@ -1,11 +1,12 @@
 ---
 x-spark-common:
   &spark-common
-  image: apache/spark:3.5.6
+  build: spark
+  # image: apache/spark:3.5.6
   env_file:
     - .env
   volumes:
-    - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    - ./spark/conf/x.conf:/opt/spark/conf/spark-defaults.conf
     - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
     - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
     - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar

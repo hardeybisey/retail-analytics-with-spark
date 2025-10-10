@@ -2,6 +2,7 @@ import logging
 
 from pyspark.sql import DataFrame as SparkDataFrame
 from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
 
 
 def create_logger(name: str) -> logging.Logger:
@@ -19,6 +20,32 @@ def create_logger(name: str) -> logging.Logger:
 
 
 logger = create_logger("retail-analytics-with-spark")
+
+
+def get_last_updated_date(
+    spark_context: SparkSession, table_name: str, column: str = "effective_to"
+):
+    """Get the maximum value from the provided column in the given table.
+
+    Parameters
+    ----------
+    spark_context : SparkSession
+        _description_
+    table_name : str
+        _description_
+    column : str, optional
+        _description_, by default "effective_to"
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    return (
+        spark_context.table(table_name)
+        .agg(F.coalesce(F.max(column), F.to_date("1999-12-31")).alias("max_date"))
+        .first()["max_date"]
+    )
 
 
 def get_or_create_spark_session(

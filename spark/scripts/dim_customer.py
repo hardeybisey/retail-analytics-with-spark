@@ -7,6 +7,7 @@ from utils import (
     write_parquet,
     create_logger,
     read_from_iceberg_table,
+    get_last_updated_date,
 )
 import os
 
@@ -25,10 +26,8 @@ def create_stg_customer_table(spark: SparkSession) -> None:
     spark : SparkSession
         Spark session for the ETL process
     """
-    last_updated_date = (
-        spark.table("dim_customer")
-        .agg(F.coalesce(F.max("effective_to"), F.lit("1999-12-31")).alias("max_date"))
-        .first()["max_date"]
+    last_updated_date = get_last_updated_date(
+        spark_context=spark, table_name="dim_customer"
     )
     df = read_parquet(
         spark_context=spark, file_name="customers.parquet", s3_bucket=S3_INPUTS_BUCKET
@@ -111,11 +110,11 @@ def create_customer_scd2(spark: SparkSession) -> None:
             F.col("s.address"),
             F.col("s.state"),
             F.col("s.zip_code_prefix"),
-            F.col("s.created_date"),
+            F.col("s.updated_date"),
         )
         .withColumns(
             {
-                "effective_from": F.col("created_date"),
+                "effective_from": F.col("updated_date"),
                 "effective_to": F.lit(None),
                 "is_current": F.lit(True),
             }
@@ -126,7 +125,7 @@ def create_customer_scd2(spark: SparkSession) -> None:
                 F.concat_ws("||", F.col("customer_id"), F.col("effective_from")), 256
             ),
         )
-        .drop("created_date")
+        .drop("updated_date")
     )
 
     expired_records = (

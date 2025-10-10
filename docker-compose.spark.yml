@@ -7,7 +7,7 @@ x-spark-common:
   env_file:
     - .env
   volumes:
-    - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    - ./conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     - ./notebooks:/home/iceberg/notebooks
 
 name: spark

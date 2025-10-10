@@ -129,7 +129,7 @@ services:
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/spark:/opt/airflow/spark
-      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ./conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       airflow-net:
       shared-network:

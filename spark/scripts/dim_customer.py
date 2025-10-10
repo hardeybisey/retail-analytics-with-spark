@@ -50,6 +50,7 @@ def create_stg_customer_table(spark: SparkSession) -> None:
                 "customer_updated_date": "updated_date",
             }
         )
+        .coalesce(1)
         .withColumn(
             "row_num",
             F.row_number().over(

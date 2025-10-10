@@ -49,6 +49,7 @@ def create_stg_seller_table(spark: SparkSession) -> None:
                 "seller_updated_date": "updated_date",
             }
         )
+        .coalesce(1)
         .withColumn(
             "row_num",
             F.row_number().over(

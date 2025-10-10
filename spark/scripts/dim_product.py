@@ -50,6 +50,7 @@ def create_stg_product_table(spark: SparkSession) -> None:
             ),
         )
         .filter(F.col("product_updated_date") > F.lit(last_updated_date))
+        .coalesce(1)
         .dropDuplicates(["product_id"])
     )
 

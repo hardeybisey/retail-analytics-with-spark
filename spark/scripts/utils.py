@@ -43,7 +43,9 @@ def get_last_updated_date(
     """
     return (
         spark_context.table(table_name)
-        .agg(F.coalesce(F.max(column), F.to_date("1999-12-31")).alias("max_date"))
+        .agg(
+            F.coalesce(F.max(column), F.to_date(F.lit("1999-12-31"))).alias("max_date")
+        )
         .first()["max_date"]
     )
 

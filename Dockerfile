@@ -19,9 +19,11 @@ ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
 
 RUN mkdir -p ${SPARK_HOME}/jars
 
+# --- Download Spark ---
 ADD https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz /spark.tgz
 RUN tar -xzf /spark.tgz -C ${SPARK_HOME} --strip-components 1 && rm /spark.tgz
 
+# --- Download Iceberg & AWS connectors ---
 ADD https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar ${SPARK_HOME}/jars/
 ADD https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar ${SPARK_HOME}/jars/
 ADD https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}/${ICEBERG_VERSION}/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar ${SPARK_HOME}/jars/

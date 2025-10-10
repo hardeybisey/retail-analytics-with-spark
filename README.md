@@ -56,10 +56,10 @@ For other stacks, check the following projects:
 docker network create --subnet=172.22.0.0/16 shared-network
 
 # start spark services
-docker compose -f docker-compose.spark.yml up -d
+docker compose -f docker-compose.spark.yml up -d --build
 
 # start airflow services
-docker compose -f docker-compose.airflow.yml up -d
+docker compose -f docker-compose.airflow.yml up -d --build
 ```
 
 # navigate to
@@ -71,8 +71,17 @@ localhost: celery flower
 ```
 
 # cleanup airflow and spark services
-docker compose -f docker-compose.airflow.yml down -v
-docker compose -f docker-compose.spark.yml down -v
+```bash
+docker compose -f docker-compose.airflow.yml down
+docker compose -f docker-compose.spark.yml down
+```
+
+
+```bash
+# for dev
+docker compose -f docker-compose.spark.yml up -d --build && docker compose -f docker-compose.airflow.yml up -d --build
+docker compose -f docker-compose.airflow.yml down -v && docker compose -f docker-compose.spark.yml down -v
+```
 
 --master $SPARK_MASTER_URL
 

@@ -1,16 +1,15 @@
 ---
 x-spark-common:
   &spark-common
-  build: spark
-  # image: apache/spark:3.5.6
+  build:
+    context: .
+    target: spark
   env_file:
     - .env
   volumes:
     - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-    - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
-    - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
-    - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
-    - ./spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar:/opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar
+    - ./notebooks:/home/iceberg/notebooks
+
 name: spark
 services:
   # data-gen:
@@ -26,7 +25,7 @@ services:
   spark-master:
     <<: *spark-common
     container_name: spark-master
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master -p 7077
+    command: master
     environment:
       SPARK_MODE: master
       SPARK_SSL_ENABLED: no
@@ -38,19 +37,7 @@ services:
     ports:
       - "7077:7077"       # Spark master port
       - "8081:8080"       # Spark Master UI
-      # - "18080:18080"   # History server UI
-    networks:
-      spark-net:
-      shared-network:
-    depends_on:
-      - minio
-
-  spark-history-server:
-    <<: *spark-common
-    container_name: spark-history-server
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.history.HistoryServer
-    ports:
-      - "18080:18080"
+      - "18080:18080"   # History server UI
     networks:
       spark-net:
       shared-network:
@@ -60,11 +47,11 @@ services:
   spark-worker-one:
     <<: *spark-common
     container_name: spark-worker-one
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $SPARK_MASTER_URL
+    command: worker
     environment:
       SPARK_MODE: worker
-      SPARK_WORKER_CORES: 2
-      SPARK_WORKER_MEMORY: 2G
+      SPARK_WORKER_CORES: 3
+      SPARK_WORKER_MEMORY: 3G
     depends_on:
       - spark-master
     ports:
@@ -76,11 +63,11 @@ services:
   spark-worker-two:
     <<: *spark-common
     container_name: spark-worker-two
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker $SPARK_MASTER_URL
+    command: worker
     environment:
       SPARK_MODE: worker
-      SPARK_WORKER_CORES: 6
-      SPARK_WORKER_MEMORY: 6G
+      SPARK_WORKER_CORES: 3
+      SPARK_WORKER_MEMORY: 3G
     depends_on:
       - spark-master
     ports:
@@ -89,33 +76,25 @@ services:
       spark-net:
       shared-network:
 
-  # spark-notebook:
-  #   <<: *spark-common
-  #   container_name: spark-notebook
-  #   command: >
-  #     jupyter notebook
-  #     --ip=0.0.0.0
-  #     --NotebookApp.token=''
-  #     --NotebookApp.password=''
-  #     --port=8888
-  #     --no-browser
-  #     --allow-root
-  #   environment:
-  #     # <<: *spark-common-env
-  #     SPARK_MODE: driver
-  #     SPARK_DRIVER_HOST: spark-notebook
-  #   ports:
-  #     - "8888:8888"
-  #     - "4041:4040"
-  #   networks:
-  #     spark-net:
-  #   volumes:
-  #     - ./notebooks:/home/iceberg/notebooks
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: 1
-    #       memory: 1G
+  spark-notebook:
+    <<: *spark-common
+    container_name: spark-notebook
+    command: >
+      jupyter notebook
+      --ip=0.0.0.0
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+      --port=8888
+      --no-browser
+      --allow-root
+    environment:
+      SPARK_MODE: driver
+      SPARK_DRIVER_HOST: spark-notebook
+    ports:
+      - "8888:8888"
+      - "4041:4040"
+    networks:
+      spark-net:
 
   minio:
     image: minio/minio

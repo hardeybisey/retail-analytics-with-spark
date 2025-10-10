@@ -1,7 +1,9 @@
 ---
 x-airflow-common:
   &airflow-common
-  build: airflow
+  build:
+    context: .
+    target: airflow
   env_file:
       - .env
   environment:
@@ -126,12 +128,8 @@ services:
       - "4040:4040"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
-      - ./spark/scripts:/opt/airflow/scripts
+      - ./airflow/spark:/opt/airflow/spark
       - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-      - ./spark/jars/hadoop-aws-3.3.4.jar:/opt/spark/jars/hadoop-aws-3.3.4.jar
-      - ./spark/jars/iceberg-aws-bundle-1.9.0.jar:/opt/spark/jars/iceberg-aws-bundle-1.9.0.jar
-      - ./spark/jars/aws-java-sdk-bundle-1.12.466.jar:/opt/spark/jars/aws-java-sdk-bundle-1.12.466.jar
-      - ./spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar:/opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.9.0.jar
     networks:
       airflow-net:
       shared-network:
@@ -165,13 +163,13 @@ services:
       - -c
       - |
         echo "Creating missing opt dirs if missing:"
-        mkdir -v -p /opt/airflow/{logs,dags,plugins,config}
+        mkdir -v -p /opt/airflow/{logs,dags,plugins,config,spark}
         echo "Files in shared volumes:"
-        ls -la /opt/airflow/{logs,dags,plugins,config}
+        ls -la /opt/airflow/{logs,dags,plugins,config,spark}
         echo "Change ownership of files in /opt/airflow to ${AIRFLOW_UID}:0"
         chown -R "${AIRFLOW_UID}:0" /opt/airflow/
         echo "Change ownership of files in shared volumes to ${AIRFLOW_UID}:0"
-        chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config}
+        chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config,spark}
         echo "Add Spark connection"
         /entrypoint airflow connections add "${SPARK_CONN_NAME}" \
           --conn-type "spark" \

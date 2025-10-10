@@ -94,13 +94,13 @@ def fact_order_summary(spark: SparkSession) -> None:
             total_order_value DECIMAL(10, 2) NOT NULL,
             total_freight_value DECIMAL(10, 2) NOT NULL,
             item_count INT NOT NULL,
-            order_date_key DATE NOT NULL,
-            delivered_to_carrier_date_key DATE NOT NULL,
-            delivered_to_customer_date_key DATE NOT NULL,
-            estimated_delivery_date_key DATE NOT NULL,
-            order_approved_date_key DATE NOT NULL,
-            min_shipping_limit_date_key DATE NOT NULL,
-            max_shipping_limit_date_key DATE NOT NULL
+            order_date_key INT NOT NULL,
+            delivered_to_carrier_date_key INT NOT NULL,
+            delivered_to_customer_date_key INT NOT NULL,
+            estimated_delivery_date_key INT NOT NULL,
+            order_approved_date_key INT NOT NULL,
+            min_shipping_limit_date_key INT NOT NULL,
+            max_shipping_limit_date_key INT NOT NULL
         )
         """
     )
@@ -119,8 +119,8 @@ def fact_order_items(spark: SparkSession) -> None:
             order_item_id STRING NOT NULL,
             item_value DECIMAL(10, 2) NOT NULL,
             freight_value DECIMAL(10, 2) NOT NULL,
-            order_date_key DATE NOT NULL,
-            shipping_limit_date_key DATE NOT NULL
+            order_date_key INT NOT NULL,
+            shipping_limit_date_key INT NOT NULL
         )
         """
     )
@@ -185,13 +185,13 @@ if __name__ == "__main__":
     logger = create_logger("migrations")
     spark = get_or_create_spark_session()
     tables = [
-        create_namespace,
-        dim_customer,
-        dim_seller,
-        dim_product,
+        # create_namespace,
+        # dim_customer,
+        # dim_seller,
+        # dim_product,
         fact_order_summary,
         fact_order_items,
-        dim_date,
+        # dim_date,
     ]
     for table in tables:
         table(spark)

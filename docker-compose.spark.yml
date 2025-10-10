@@ -1,0 +1,163 @@
+---
+x-spark-common:
+  &spark-common
+  build:
+    context: .
+    target: spark
+  env_file:
+    - .env
+  volumes:
+    - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    - ./notebooks:/home/iceberg/notebooks
+
+name: spark
+services:
+  # data-gen:
+  #   image: iadebisi/ecommerce-data-generator
+  #   command: >
+  #     --customers 20000
+  #     --sellers 2000
+  #     --orders 2000000
+  #     --format parquet
+  #   volumes:
+  #       - ./raw_input:/data
+
+  spark-master:
+    <<: *spark-common
+    container_name: spark-master
+    command: master
+    environment:
+      SPARK_MODE: master
+      SPARK_SSL_ENABLED: no
+      SPARK_RPC_AUTHENTICATION_ENABLED: no
+      SPARK_RPC_ENCRYPTION_ENABLED: no
+      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+      SPARK_METRICS_ENABLED: yes
+      SPARK_MASTER_HOST: 0.0.0.0
+    ports:
+      - "7077:7077"       # Spark master port
+      - "8081:8080"       # Spark Master UI
+      - "18080:18080"   # History server UI
+    networks:
+      spark-net:
+      shared-network:
+    depends_on:
+      - minio
+
+  spark-worker-one:
+    <<: *spark-common
+    container_name: spark-worker-one
+    command: worker
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 3
+      SPARK_WORKER_MEMORY: 3G
+    depends_on:
+      - spark-master
+    ports:
+      - "8082:8081"
+    networks:
+      spark-net:
+      shared-network:
+
+  spark-worker-two:
+    <<: *spark-common
+    container_name: spark-worker-two
+    command: worker
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 3
+      SPARK_WORKER_MEMORY: 3G
+    depends_on:
+      - spark-master
+    ports:
+      - "8083:8081"
+    networks:
+      spark-net:
+      shared-network:
+
+  spark-notebook:
+    <<: *spark-common
+    container_name: spark-notebook
+    command: >
+      jupyter notebook
+      --ip=0.0.0.0
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+      --port=8888
+      --no-browser
+      --allow-root
+    environment:
+      SPARK_MODE: driver
+      SPARK_DRIVER_HOST: spark-notebook
+    ports:
+      - "8888:8888"
+      - "4041:4040"
+    networks:
+      spark-net:
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio:9000/minio/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+      MINIO_DOMAIN: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      shared-network:
+        aliases:
+          - ${S3_WH_BUCKET}.minio
+      spark-net:
+        aliases:
+          - ${S3_WH_BUCKET}.minio
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
+
+  minio-client:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+      # data-gen:
+      #   condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    networks:
+      spark-net:
+    volumes:
+      - ./raw_input:/tmp/data
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5 &&
+      mc alias set local http://minio:9000 ${AWS_ACCESS_KEY_ID} ${AWS_SECRET_ACCESS_KEY};
+      mc mb --ignore-existing local/${S3_LOGS_BUCKET};
+      mc mb --ignore-existing local/${S3_INPUTS_BUCKET};
+      mc mb --ignore-existing local/${S3_WH_BUCKET};
+      mc mb --ignore-existing local/${S3_STG_BUCKET};
+      mc cp --recursive /tmp/data/*.parquet local/${S3_INPUTS_BUCKET}/;
+      echo "keep" | mc pipe local/${S3_LOGS_BUCKET}/spark-events/.keep;
+      exit 0;
+      "
+    restart: "no"
+
+volumes:
+  minio-data:
+
+networks:
+  spark-net:
+    driver: bridge
+  shared-network:
+    driver: bridge
+    external: true

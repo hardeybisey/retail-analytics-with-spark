@@ -1,3 +1,0 @@
-astro-run-dag
-apache-airflow-providers-apache-spark==5.3.2
-pyspark==3.5.6

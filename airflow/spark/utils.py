@@ -165,4 +165,5 @@ def read_from_iceberg(spark_session: SparkSession, table_name: str) -> SparkData
 
 
 def null_safe_eq(col1, col2):
+    "helper for null safe joins between two columns"
     return (col1 == col2) | (col1.isNull() & col2.isNull())

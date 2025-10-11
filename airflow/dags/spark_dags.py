@@ -58,12 +58,22 @@ with DAG(
         },
     )
 
-    stg_order_order_items = SparkSubmitOperator(
-        task_id="stg_order_order_items",
-        name="stg_order_order_item_job",
-        application="/opt/airflow/spark/stg_order_order_item.py",
+    stg_orders = SparkSubmitOperator(
+        task_id="stg_orders",
+        name="stg_orders_job",
+        application="/opt/airflow/spark/stg_orders.py",
         conf={
-            "spark.executor.memory": "2G",
+            "spark.executor.memory": "1G",
+            "spark.driver.memory": "1G",
+        },
+    )
+
+    stg_order_items = SparkSubmitOperator(
+        task_id="stg_order_items",
+        name="stg_order_items_job",
+        application="/opt/airflow/spark/stg_order_items.py",
+        conf={
+            "spark.executor.memory": "1G",
             "spark.driver.memory": "1G",
         },
     )
@@ -90,8 +100,14 @@ with DAG(
 
     start >> run_migrations
 
-    run_migrations >> [stg_order_order_items, dim_customers, dim_sellers, dim_products]
+    run_migrations >> [
+        stg_orders,
+        stg_order_items,
+        dim_customers,
+        dim_sellers,
+        dim_products,
+    ]
 
-    [dim_sellers, dim_products, stg_order_order_items] >> fact_order_items >> end
+    [dim_sellers, dim_products, stg_orders, stg_order_items] >> fact_order_items >> end
 
-    [dim_customers, stg_order_order_items] >> fact_order_summary >> end
+    [dim_customers, stg_orders, stg_order_items] >> fact_order_summary >> end

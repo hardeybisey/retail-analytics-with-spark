@@ -23,6 +23,7 @@ x-airflow-common:
   user: "${AIRFLOW_UID}:0"
   volumes:
     - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
     - ./airflow/config:/opt/airflow/config
   depends_on:
     &airflow-common-depends-on
@@ -128,6 +129,7 @@ services:
       - "4040:4040"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
       - ./airflow/spark:/opt/airflow/spark
       - ./conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:

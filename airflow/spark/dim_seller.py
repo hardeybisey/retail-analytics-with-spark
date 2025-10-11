@@ -4,7 +4,7 @@ from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
     read_parquet,
-    read_from_iceberg_table,
+    read_from_iceberg,
     create_logger,
     write_parquet,
     get_last_updated_date,
@@ -26,10 +26,10 @@ def create_stg_seller_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     last_updated_date = get_last_updated_date(
-        spark_context=spark, table_name="dim_seller"
+        spark_session=spark, table_name="dim_seller"
     )
     df = read_parquet(
-        spark_context=spark, file_name="sellers.parquet", s3_bucket=S3_INPUTS_BUCKET
+        spark_session=spark, file_name="sellers.parquet", s3_bucket=S3_INPUTS_BUCKET
     )
     df = (
         df.withColumn(
@@ -80,13 +80,11 @@ def create_seller_scd2(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     stg_seller_table = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="stg_seller.parquet",
         s3_bucket=S3_STG_BUCKET,
     )
-    dim_seller_table = read_from_iceberg_table(
-        spark_context=spark, table_name="dim_seller"
-    )
+    dim_seller_table = read_from_iceberg(spark_session=spark, table_name="dim_seller")
 
     active_records = stg_seller_table.alias("s").join(
         dim_seller_table.alias("d"),
@@ -159,7 +157,7 @@ def create_seller_dim_table(spark) -> None:
         Spark session for the ETL process
     """
     tmp_dim_seller = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="tmp_dim_seller.parquet",
         s3_bucket=S3_STG_BUCKET,
     )

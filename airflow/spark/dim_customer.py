@@ -6,7 +6,7 @@ from utils import (
     read_parquet,
     write_parquet,
     create_logger,
-    read_from_iceberg_table,
+    read_from_iceberg,
     get_last_updated_date,
 )
 import os
@@ -27,10 +27,10 @@ def create_stg_customer_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     last_updated_date = get_last_updated_date(
-        spark_context=spark, table_name="dim_customer"
+        spark_session=spark, table_name="dim_customer"
     )
     df = read_parquet(
-        spark_context=spark, file_name="customers.parquet", s3_bucket=S3_INPUTS_BUCKET
+        spark_session=spark, file_name="customers.parquet", s3_bucket=S3_INPUTS_BUCKET
     )
     df = (
         df.withColumn(
@@ -81,12 +81,12 @@ def create_customer_scd2(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     stg_customer_table = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="stg_customer.parquet",
         s3_bucket=S3_STG_BUCKET,
     )
-    dim_customer_table = read_from_iceberg_table(
-        spark_context=spark, table_name="dim_customer"
+    dim_customer_table = read_from_iceberg(
+        spark_session=spark, table_name="dim_customer"
     )
 
     active_records = stg_customer_table.alias("s").join(
@@ -162,7 +162,7 @@ def create_customer_dim_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     tmp_dim_customer = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="tmp_dim_customer.parquet",
         s3_bucket=S3_STG_BUCKET,
     )

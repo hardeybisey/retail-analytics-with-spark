@@ -5,6 +5,7 @@ from utils import (
     load_to_iceberg,
     read_from_iceberg,
     create_logger,
+    null_safe_eq,
     read_parquet,
 )
 import os
@@ -38,12 +39,14 @@ def fct_order_items_table(spark: SparkSession) -> None:
         stg_order_items.alias("order_items")
         .join(
             dim_date.alias("order_date"),
-            on=F.col("order_items.order_date") == F.col("order_date.date"),
+            on=null_safe_eq(F.col("order_items.order_date"), F.col("order_date.date")),
             how="left",
         )
         .join(
             dim_date.alias("shipping_date"),
-            on=F.col("order_items.shipping_limit_date") == F.col("shipping_date.date"),
+            on=null_safe_eq(
+                F.col("order_items.shipping_limit_date"), F.col("shipping_date.date")
+            ),
             how="left",
         )
         .join(

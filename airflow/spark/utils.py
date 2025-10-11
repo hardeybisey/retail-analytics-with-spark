@@ -162,3 +162,7 @@ def read_from_iceberg(spark_session: SparkSession, table_name: str) -> SparkData
     logger.info(f"Reading data from Iceberg table {table_name}")
     df = spark_session.read.table(table_name)
     return df
+
+
+def null_safe_eq(col1, col2):
+    return (col1 == col2) | (col1.isNull() & col2.isNull())

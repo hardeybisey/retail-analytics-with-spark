@@ -1,9 +1,6 @@
 ## Architecture Overview
-![](Untitled-2025-08-21-1526.svg)
+![](../Untitled-2025-08-21-1526.svg)
 
-
-## Architecture Overview
-![](Untitled-2025-08-21-1526.svg)
 
 ---
 ## Key Features
@@ -61,43 +58,14 @@ docker compose -f docker-compose.spark.yml down
 
 ```bash
 # for dev
+cd retail-analytics-with-spark/deployments/docker
 docker compose -f docker-compose.spark.yml up -d --build && docker compose -f docker-compose.airflow.yml up -d --build
 docker compose -f docker-compose.airflow.yml down -v && docker compose -f docker-compose.spark.yml down -v
 ```
 
 ```bash
 # for dev
+cd retail-analytics-with-spark/deployments/docker
 docker compose -f docker-compose.spark.yml up -d  && docker compose -f docker-compose.airflow.yml up -d
 docker compose -f docker-compose.airflow.yml down && docker compose -f docker-compose.spark.yml down
 ```
-
-
-
---master $SPARK_MASTER_URL
-
-spark-submit --executor-memory 1G \
-     --executor-cores 1 \
-     --total-executor-cores 1  \
-     /opt/airflow/scripts/test.py
-
-spark-submit --executor-memory 1G \
-     --executor-cores 1 \
-     --total-executor-cores 1  \
-     /opt/airflow/scripts/migrations_v1.py
-
-
-airflow url: http://localhost:8080/
-spark master url: http://localhost:8081/
-spark worker-1 url: http://localhost:8082/
-spark worker-2 url: http://localhost:8083/
-spark history-server: http://localhost:18080/
-MinIO s3 url: http://localhost:9001/
-
-<!--
-df = spark.createDataFrame(data, schema)
-# Add a temporary column with monotonically increasing id
-df = df.withColumn("temp_id", monotonically_increasing_id())
-# Define a window specification
-window_spec = Window.orderBy("temp_id")
-# Add a surrogate key with consecutive values using row_number()
-df = df.withColumn("ID", row_number().over(window_spec)).drop("temp_id") -->

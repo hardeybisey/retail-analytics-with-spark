@@ -14,9 +14,9 @@ Other stacks in the *Retail Analytics* series:
 
 The project supports three deployment modes for flexibility across development, testing, and production. Each mode uses the same core architecture but with environment-specific components for orchestration, processing, and storage.
 
-1. [Local (Docker) Deployment](docs/local_docker.md): For development and debugging. All services (Airflow, Spark, MinIO, Postgres) run via docker-compose.
-2. [Local (Kubernetes) Deployment](docs/local_kubernetes.md): For near production testing. Uses Helm charts for Airflow, Spark, MinIO.
-3. [Cloud Deployment](docs/aws_cloud.md): For production ready deployment using managed services on AWS.
+1. Local (Docker): For development and debugging. All services (Airflow, Spark, MinIO, Postgres) run via docker-compose.
+2. Local (Kubernetes): For near production testing. Uses Helm charts for Airflow, Spark, MinIO deployment on Kubernetes.
+3. Cloud Deployment: For production ready deployment using managed services (MWAA, AWS Glue, EMR).
 
 ---
 
@@ -33,8 +33,7 @@ The project supports three deployment modes for flexibility across development, 
 
 ---
 
-## **Technology Stack**
-
+## Technology Stack
 
 * Apache Airflow
 * Apache Spark
@@ -44,7 +43,7 @@ The project supports three deployment modes for flexibility across development, 
 
 ---
 
-### **Integration Flow**
+### Integration Flow
 
 The pipeline is designed around a modular, reproducible flow:
 
@@ -76,7 +75,25 @@ The pipeline is designed around a modular, reproducible flow:
 This architecture separates **orchestration**, **processing**, and **storage** concerns, enabling scalability and clear fault boundaries. This modular design enables each layer (orchestration, processing, storage) to evolve independently — for example, switching from MinIO to S3 or scaling Spark from standalone to cluster mode without changing business logic.
 
 ## Repository Structure
-
+```
+├── airflow
+│   ├── config
+│   ├── dags
+│   │
+├── conf
+├── deployments
+│   ├── aws
+│   │   └── terraform
+│   ├── docker
+│   └── kubernetes
+├── docs
+├── jars
+├── notebooks
+├── raw_input
+└── src
+    ├── spark_jobs
+    └── test
+```
 --
 
 ## Getting Started

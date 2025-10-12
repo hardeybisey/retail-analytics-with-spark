@@ -8,7 +8,6 @@ x-spark-common:
     - .env
   volumes:
     - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-    - ${PROJECT_ROOT_DIR}/notebooks:/home/iceberg/notebooks
 
 name: spark
 services:

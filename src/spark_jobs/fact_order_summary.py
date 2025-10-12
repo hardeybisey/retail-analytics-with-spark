@@ -2,10 +2,11 @@ from pyspark.sql import functions as F
 from pyspark.sql import SparkSession
 from utils import (
     get_or_create_spark_session,
-    load_data_to_iceberg_table,
-    read_from_iceberg_table,
+    load_to_iceberg,
+    read_from_iceberg,
     create_logger,
     read_parquet,
+    null_safe_eq,
 )
 import os
 
@@ -25,20 +26,18 @@ def fct_order_summary_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     stg_orders = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="stg_orders.parquet",
         s3_bucket=S3_STG_BUCKET,
     )
     stg_order_items = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="stg_order_items.parquet",
         s3_bucket=S3_STG_BUCKET,
     )
 
-    dim_date = read_from_iceberg_table(spark_context=spark, table_name="dim_date")
-    dim_customer = read_from_iceberg_table(
-        spark_context=spark, table_name="dim_customer"
-    )
+    dim_date = read_from_iceberg(spark_session=spark, table_name="dim_date")
+    dim_customer = read_from_iceberg(spark_session=spark, table_name="dim_customer")
     order_item_aggregate = stg_order_items.groupBy("order_id").agg(
         F.sum("item_value").alias("total_order_value"),
         F.sum("freight_value").alias("total_freight_value"),
@@ -52,40 +51,51 @@ def fct_order_summary_table(spark: SparkSession) -> None:
         .join(order_item_aggregate.alias("order_item_agg"), on="order_id", how="left")
         .join(
             dim_date.alias("order_date"),
-            on=F.col("orders.order_date") == F.col("order_date.date"),
+            on=null_safe_eq(F.col("orders.order_date"), F.col("order_date.date")),
             how="left",
         )
         .join(
             dim_date.alias("approved_date"),
-            on=F.col("orders.order_approved_date") == F.col("approved_date.date"),
+            on=null_safe_eq(
+                F.col("orders.order_approved_date"), F.col("approved_date.date")
+            ),
             how="left",
         )
         .join(
             dim_date.alias("carrier_ddate"),
-            on=F.col("orders.delivered_to_carrier_date") == F.col("carrier_ddate.date"),
+            on=null_safe_eq(
+                F.col("orders.delivered_to_carrier_date"), F.col("carrier_ddate.date")
+            ),
             how="left",
         )
         .join(
             dim_date.alias("customer_ddate"),
-            on=F.col("orders.delivered_to_customer_date")
-            == F.col("customer_ddate.date"),
+            on=null_safe_eq(
+                F.col("orders.delivered_to_customer_date"), F.col("customer_ddate.date")
+            ),
             how="left",
         )
         .join(
             dim_date.alias("estimated_ddate"),
-            on=F.col("orders.estimated_delivery_date") == F.col("estimated_ddate.date"),
+            on=null_safe_eq(
+                F.col("orders.estimated_delivery_date"), F.col("estimated_ddate.date")
+            ),
             how="left",
         )
         .join(
             dim_date.alias("min_shipping_ldate"),
-            on=F.col("order_item_agg.min_shipping_limit_date")
-            == F.col("min_shipping_ldate.date"),
+            on=null_safe_eq(
+                F.col("order_item_agg.min_shipping_limit_date"),
+                F.col("min_shipping_ldate.date"),
+            ),
             how="left",
         )
         .join(
             dim_date.alias("max_shipping_ldate"),
-            on=F.col("order_item_agg.max_shipping_limit_date")
-            == F.col("max_shipping_ldate.date"),
+            on=null_safe_eq(
+                F.col("order_item_agg.max_shipping_limit_date"),
+                F.col("max_shipping_ldate.date"),
+            ),
             how="left",
         )
         .join(
@@ -117,7 +127,7 @@ def fct_order_summary_table(spark: SparkSession) -> None:
         F.col("max_shipping_ldate.date_key").alias("max_shipping_limit_date_key"),
     )
 
-    load_data_to_iceberg_table(df, table_name="fact_order_summary", mode="overwrite")
+    load_to_iceberg(data_frame=df, table_name="fact_order_summary", mode="append")
 
 
 def run_etl() -> None:

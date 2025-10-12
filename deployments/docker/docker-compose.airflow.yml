@@ -2,7 +2,7 @@
 x-airflow-common:
   &airflow-common
   build:
-    context: .
+    context: ${PROJECT_ROOT_DIR}/deployments/docker
     target: airflow
   env_file:
       - .env
@@ -22,8 +22,9 @@ x-airflow-common:
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
   user: "${AIRFLOW_UID}:0"
   volumes:
-    - ./airflow/dags:/opt/airflow/dags
-    - ./airflow/config:/opt/airflow/config
+    - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags
+    - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
+    - ${PROJECT_ROOT_DIR}/airflow/config:/opt/airflow/config
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -36,7 +37,7 @@ services:
   postgres:
     image: postgres:16
     networks:
-        airflow-net:
+        shared-network:
     environment:
       POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASS}
@@ -55,7 +56,7 @@ services:
     expose:
       - 6379
     networks:
-        airflow-net:
+        shared-network:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -68,7 +69,7 @@ services:
     container_name: airflow-apiserver
     <<: *airflow-common
     networks:
-        airflow-net:
+        shared-network:
     command: api-server
     ports:
       - "8080:8080"
@@ -88,7 +89,7 @@ services:
     container_name: airflow-scheduler
     <<: *airflow-common
     networks:
-        airflow-net:
+        shared-network:
     command: scheduler
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
@@ -106,7 +107,7 @@ services:
     container_name: airflow-dagprocessor
     <<: *airflow-common
     networks:
-        airflow-net:
+        shared-network:
     command: dag-processor
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
@@ -127,13 +128,13 @@ services:
     ports:
       - "4040:4040"
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/spark:/opt/airflow/spark
-      - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+      - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
+      - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags
+      - ${PROJECT_ROOT_DIR}/src/spark_jobs:/opt/spark/spark_jobs
+      - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
-      airflow-net:
       shared-network:
-        ipv4_address: 172.22.0.10
+        # ipv4_address: 172.22.0.10
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -157,19 +158,19 @@ services:
     container_name: airflow-init
     <<: *airflow-common
     networks:
-        airflow-net:
+        shared-network:
     entrypoint: /bin/bash
     command:
       - -c
       - |
         echo "Creating missing opt dirs if missing:"
-        mkdir -v -p /opt/airflow/{logs,dags,plugins,config,spark}
+        mkdir -v -p /opt/airflow/{logs,dags,plugins,config}
         echo "Files in shared volumes:"
-        ls -la /opt/airflow/{logs,dags,plugins,config,spark}
+        ls -la /opt/airflow/{logs,dags,plugins,config}
         echo "Change ownership of files in /opt/airflow to ${AIRFLOW_UID}:0"
         chown -R "${AIRFLOW_UID}:0" /opt/airflow/
         echo "Change ownership of files in shared volumes to ${AIRFLOW_UID}:0"
-        chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config,spark}
+        chown -v -R "${AIRFLOW_UID}:0" /opt/airflow/{logs,dags,plugins,config}
         echo "Add Spark connection"
         /entrypoint airflow connections add "${SPARK_CONN_NAME}" \
           --conn-type "spark" \
@@ -189,8 +190,6 @@ services:
 
 
 networks:
-  airflow-net:
-    driver: bridge
   shared-network:
     driver: bridge
     external: true

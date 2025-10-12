@@ -4,7 +4,7 @@ from utils import (
     get_or_create_spark_session,
     read_parquet,
     write_parquet,
-    read_from_iceberg_table,
+    read_from_iceberg,
     create_logger,
     get_last_updated_date,
 )
@@ -25,13 +25,13 @@ def create_stg_product_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     last_updated_date = get_last_updated_date(
-        spark_context=spark, table_name="dim_product"
+        spark_session=spark, table_name="dim_product"
     )
     df_product = read_parquet(
-        spark_context=spark, file_name="products.parquet", s3_bucket=S3_INPUTS_BUCKET
+        spark_session=spark, file_name="products.parquet", s3_bucket=S3_INPUTS_BUCKET
     )
     df_product_category = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="product_category.parquet",
         s3_bucket=S3_INPUTS_BUCKET,
     )
@@ -94,13 +94,11 @@ def create_product_scd2(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     stg_product_table = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="stg_product.parquet",
         s3_bucket=S3_STG_BUCKET,
     )
-    dim_product_table = read_from_iceberg_table(
-        spark_context=spark, table_name="dim_product"
-    )
+    dim_product_table = read_from_iceberg(spark_session=spark, table_name="dim_product")
 
     active_records = stg_product_table.alias("s").join(
         dim_product_table.alias("d"),
@@ -185,7 +183,7 @@ def create_product_dim_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     tmp_dim_product = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="tmp_dim_product.parquet",
         s3_bucket=S3_STG_BUCKET,
     )

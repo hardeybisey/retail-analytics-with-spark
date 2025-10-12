@@ -2,13 +2,13 @@
 x-spark-common:
   &spark-common
   build:
-    context: .
+    context: ${PROJECT_ROOT_DIR}/deployments/docker
     target: spark
   env_file:
     - .env
   volumes:
-    - ./spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
-    - ./notebooks:/home/iceberg/notebooks
+    - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
+    - ${PROJECT_ROOT_DIR}/notebooks:/home/iceberg/notebooks
 
 name: spark
 services:
@@ -20,7 +20,7 @@ services:
   #     --orders 2000000
   #     --format parquet
   #   volumes:
-  #       - ./raw_input:/data
+  #       - ${PROJECT_ROOT_DIR}/raw_input:/data
 
   spark-master:
     <<: *spark-common
@@ -39,7 +39,6 @@ services:
       - "8081:8080"       # Spark Master UI
       - "18080:18080"   # History server UI
     networks:
-      spark-net:
       shared-network:
     depends_on:
       - minio
@@ -57,7 +56,6 @@ services:
     ports:
       - "8082:8081"
     networks:
-      spark-net:
       shared-network:
 
   spark-worker-two:
@@ -73,7 +71,6 @@ services:
     ports:
       - "8083:8081"
     networks:
-      spark-net:
       shared-network:
 
   spark-notebook:
@@ -94,7 +91,7 @@ services:
       - "8888:8888"
       - "4041:4040"
     networks:
-      spark-net:
+      shared-network:
 
   minio:
     image: minio/minio
@@ -116,9 +113,6 @@ services:
       shared-network:
         aliases:
           - ${S3_WH_BUCKET}.minio
-      spark-net:
-        aliases:
-          - ${S3_WH_BUCKET}.minio
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
@@ -135,9 +129,9 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     networks:
-      spark-net:
+      shared-network:
     volumes:
-      - ./raw_input:/tmp/data
+      - ${PROJECT_ROOT_DIR}/raw_input:/tmp/data
     entrypoint: >
       /bin/sh -c "
       sleep 5 &&
@@ -156,8 +150,6 @@ volumes:
   minio-data:
 
 networks:
-  spark-net:
-    driver: bridge
   shared-network:
     driver: bridge
     external: true

@@ -2,10 +2,17 @@
 This script creates dimension and fact tables using Apache Iceberg in a Spark environment.
 """
 
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    DateType,
+    IntegerType,
+    BooleanType,
+)
 from pyspark.sql import functions as F
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
-from utils import get_or_create_spark_session, create_logger, load_data_to_iceberg_table
+from utils import get_or_create_spark_session, create_logger, load_to_iceberg
 
 
 def create_namespace(spark: SparkSession) -> None:
@@ -94,13 +101,13 @@ def fact_order_summary(spark: SparkSession) -> None:
             total_order_value DECIMAL(10, 2) NOT NULL,
             total_freight_value DECIMAL(10, 2) NOT NULL,
             item_count INT NOT NULL,
-            order_date_key DATE NOT NULL,
-            delivered_to_carrier_date_key DATE NOT NULL,
-            delivered_to_customer_date_key DATE NOT NULL,
-            estimated_delivery_date_key DATE NOT NULL,
-            order_approved_date_key DATE NOT NULL,
-            min_shipping_limit_date_key DATE NOT NULL,
-            max_shipping_limit_date_key DATE NOT NULL
+            order_date_key INT NOT NULL,
+            delivered_to_carrier_date_key INT NOT NULL,
+            delivered_to_customer_date_key INT NOT NULL,
+            estimated_delivery_date_key INT NOT NULL,
+            order_approved_date_key INT NOT NULL,
+            min_shipping_limit_date_key INT NOT NULL,
+            max_shipping_limit_date_key INT NOT NULL
         )
         """
     )
@@ -119,8 +126,8 @@ def fact_order_items(spark: SparkSession) -> None:
             order_item_id STRING NOT NULL,
             item_value DECIMAL(10, 2) NOT NULL,
             freight_value DECIMAL(10, 2) NOT NULL,
-            order_date_key DATE NOT NULL,
-            shipping_limit_date_key DATE NOT NULL
+            order_date_key INT NOT NULL,
+            shipping_limit_date_key INT NOT NULL
         )
         """
     )
@@ -130,7 +137,26 @@ def dim_date(spark: SparkSession) -> None:
     """Create a  date dimension table."""
     logger.info("Creating date dimension table")
     start_date, end_date = "2020-01-01", "2025-12-31"
+    schema = StructType(
+        [
+            StructField("date_key", IntegerType()),
+            StructField("date", DateType()),
+            StructField("year", IntegerType()),
+            StructField("month", IntegerType()),
+            StructField("day", IntegerType()),
+            StructField("day_of_week", IntegerType()),
+            StructField("week_of_year", IntegerType()),
+            StructField("quarter", IntegerType()),
+            StructField("day_of_year", IntegerType()),
+            StructField("is_month_end", BooleanType()),
+            StructField("is_month_start", BooleanType()),
+            StructField("is_weekend", BooleanType()),
+        ]
+    )
 
+    null_rows = spark.createDataFrame(
+        [(0, None, None, None, None, None, None, None, None, None, None, None)], schema
+    )
     df = spark.createDataFrame([(start_date, end_date)], ["start_date", "end_date"])
     date_df = df.select(
         F.explode(
@@ -177,8 +203,9 @@ def dim_date(spark: SparkSession) -> None:
             "is_weekend",
         )
     )
+    df = null_rows.union(date_dim)
 
-    load_data_to_iceberg_table(data_frame=date_dim, table_name="dim_date")
+    load_to_iceberg(data_frame=df, table_name="dim_date")
 
 
 if __name__ == "__main__":

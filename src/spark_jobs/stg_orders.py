@@ -13,42 +13,7 @@ S3_INPUTS_BUCKET = os.environ["S3_INPUTS_BUCKET"]
 S3_STG_BUCKET = os.environ["S3_STG_BUCKET"]
 
 
-logger = create_logger("stg_order_order_item.etl")
-
-
-def create_stg_order_item_table(spark: SparkSession) -> None:
-    """Create a deduplicated staging table from raw order_items data.
-
-    Parameters
-    ----------
-    spark : SparkSession
-        Spark session for the ETL process
-    """
-
-    df = read_parquet(
-        spark_context=spark, file_name="order_items.parquet", s3_bucket=S3_INPUTS_BUCKET
-    )
-
-    df = (
-        df.dropDuplicates(["order_id", "order_item_id"])
-        .withColumnsRenamed(
-            {
-                "price": "item_value",
-            }
-        )
-        .select(
-            "order_id",
-            "order_item_id",
-            "product_id",
-            "seller_id",
-            "item_value",
-            "freight_value",
-            "shipping_limit_date",
-        )
-    )
-    write_parquet(
-        data_frame=df, file_name="stg_order_items.parquet", s3_bucket=S3_STG_BUCKET
-    )
+logger = create_logger("stg_orders.etl")
 
 
 def create_stg_orders_table(spark: SparkSession) -> None:
@@ -60,12 +25,19 @@ def create_stg_orders_table(spark: SparkSession) -> None:
         Spark session for the ETL process
     """
     df = read_parquet(
-        spark_context=spark,
+        spark_session=spark,
         file_name="orders.parquet",
         s3_bucket=S3_INPUTS_BUCKET,
     )
     df = (
-        df.withColumnsRenamed(
+        df.withColumn(
+            "row_num",
+            F.row_number().over(
+                Window.partitionBy("order_id").orderBy("order_purchase_date")
+            ),
+        )
+        .filter(F.col("row_num") == 1)
+        .withColumnsRenamed(
             {
                 "order_purchase_date": "order_date",
                 "order_approved_at": "order_approved_date",
@@ -74,13 +46,6 @@ def create_stg_orders_table(spark: SparkSession) -> None:
                 "order_estimated_delivery_date": "estimated_delivery_date",
             }
         )
-        .withColumn(
-            "row_num",
-            F.row_number().over(
-                Window.partitionBy("order_id").orderBy("order_approved_date")
-            ),
-        )
-        .filter(F.col("row_num") == 1)
         .select(
             "order_id",
             "customer_id",
@@ -98,12 +63,11 @@ def create_stg_orders_table(spark: SparkSession) -> None:
 
 
 def run_etl():
-    """Run the full ETL pipeline for stg_order and stg_order_item."""
-    logger.info("Starting ETL process for stg_order and stg_order_item")
+    """Run the full ETL pipeline for stg_orders."""
+    logger.info("Starting ETL process for stg_orders")
     sc = get_or_create_spark_session()
     create_stg_orders_table(sc)
-    create_stg_order_item_table(sc)
-    logger.info("Finished ETL process for stg_order and stg_order_item")
+    logger.info("Finished ETL process for stg_orders")
 
 
 if __name__ == "__main__":

@@ -23,13 +23,13 @@ logger = create_logger("retail-analytics-with-spark")
 
 
 def get_last_updated_date(
-    spark_context: SparkSession, table_name: str, column: str = "effective_to"
+    spark_session: SparkSession, table_name: str, column: str = "effective_to"
 ):
     """Get the maximum value from the provided column in the given table.
 
     Parameters
     ----------
-    spark_context : SparkSession
+    spark_session : SparkSession
         _description_
     table_name : str
         _description_
@@ -42,7 +42,7 @@ def get_last_updated_date(
         _description_
     """
     return (
-        spark_context.table(table_name)
+        spark_session.table(table_name)
         .agg(
             F.coalesce(F.max(column), F.to_date(F.lit("1999-12-31"))).alias("max_date")
         )
@@ -76,7 +76,7 @@ def get_or_create_spark_session(
 
 
 def read_parquet(
-    spark_context: SparkSession,
+    spark_session: SparkSession,
     file_name: str,
     s3_bucket: str = "demo-input",
 ) -> SparkDataFrame:
@@ -84,7 +84,7 @@ def read_parquet(
 
     Parameters
     ----------
-    spark_context : SparkSession
+    spark_session : SparkSession
         Spark session for the ETL process
     file_name : str
         Name of the Parquet file to read
@@ -97,7 +97,7 @@ def read_parquet(
         The Spark DataFrame containing the data from the Parquet file
     """
     logger.info(f"Extracting raw data from s3a://{s3_bucket}/{file_name}")
-    data = spark_context.read.parquet(f"s3a://{s3_bucket}/{file_name}")
+    data = spark_session.read.parquet(f"s3a://{s3_bucket}/{file_name}")
     return data
 
 
@@ -124,7 +124,7 @@ def write_parquet(
     data_frame.write.mode(mode).parquet(f"s3a://{s3_bucket}/{file_name}")
 
 
-def load_data_to_iceberg_table(
+def load_to_iceberg(
     data_frame: SparkDataFrame,
     table_name: str,
     mode: str = "overwrite",
@@ -144,14 +144,12 @@ def load_data_to_iceberg_table(
     data_frame.write.mode(mode).saveAsTable(table_name)
 
 
-def read_from_iceberg_table(
-    spark_context: SparkSession, table_name: str
-) -> SparkDataFrame:
+def read_from_iceberg(spark_session: SparkSession, table_name: str) -> SparkDataFrame:
     """Read a table from iceberg.
 
     Parameters
     ----------
-    spark_context : SparkSession
+    spark_session : SparkSession
         Spark session for the ETL process
     table_name : str
         Name of the Iceberg table to read data from
@@ -162,5 +160,10 @@ def read_from_iceberg_table(
         The Spark DataFrame containing the data from the Iceberg table
     """
     logger.info(f"Reading data from Iceberg table {table_name}")
-    df = spark_context.read.table(table_name)
+    df = spark_session.read.table(table_name)
     return df
+
+
+def null_safe_eq(col1, col2):
+    "helper for null safe joins between two columns"
+    return (col1 == col2) | (col1.isNull() & col2.isNull())

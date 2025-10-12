@@ -1,104 +1,109 @@
 # Retail Analytics with Spark
 
-This project demonstrates building a scalable e-commerce analytics pipeline with Apache Spark, transforming raw data into analytics-ready datasets. This project follows the dimensional models and business rules documented in the [Retail Analytics with Dbt](https://github.com/hardeybisey/retail-analytics-with-dbt) project, providing a hands-on guide to end-to-end data/analytics engineering at scale.
+Build a scalable, end-to-end Retail Analytics Pipeline using Apache Spark, orchestrated by Airflow and backed by Iceberg as the data lakehouse table format. This project transforms raw transactional data into dimensional models ready for business intelligence and advanced analytics following the same data models and business rules defined in the [Retail Analytics with Dbt](https://github.com/hardeybisey/retail-analytics-with-dbt) project.
 
 
-For other stacks, check the following projects:
+Other stacks in the *Retail Analytics* series:
 - [Retail Analytics with Dbt](https://github.com/hardeybisey/retail-analytics-with-dbt)
 - [Retail Analytics with Dataflow](https://github.com/hardeybisey/retail-analytics-with-dataflow)
 - [Retail Analytics with SQLMesh](https://github.com/hardeybisey/retail-analytics-with-sqlmesh)
 
 ---
 
-## Technology Stack
-* [Docker](https://docs.docker.com/engine/install/)
-* [Spark](https://spark.apache.org/)
-* [Minio](https://www.min.io/)
-* [Iceberg](https://iceberg.apache.org/)
-* [Airflow](https://airflow.apache.org/)
-* [Terraform](https://airflow.apache.org/)
-* [AWS Glue](https://airflow.apache.org/)
+## Project Overview
+
+The project supports three deployment modes for flexibility across development, testing, and production. Each mode uses the same core architecture but with environment-specific components for orchestration, processing, and storage.
+
+1. [Local (Docker) Deployment](docs/local_docker.md): For development and debugging. All services (Airflow, Spark, MinIO, Postgres) run via docker-compose.
+2. [Local (Kubernetes) Deployment](docs/local_kubernetes.md): For near production testing. Uses Helm charts for Airflow, Spark, MinIO.
+3. [Cloud Deployment](docs/aws_cloud.md): For production ready deployment using managed services on AWS.
 
 ---
+
 ## Architecture Overview
-[Image]
+
+| Layer            | Local (Docker)           | Local (Kubernetes)     | Cloud                         |
+| ---------------- | ------------------------ | ---------------------- | ----------------------------- |
+| Object Storage   | MinIO                    | MinIO                  | Amazon S3                     |
+| Orchestration    | Airflow (Docker Compose) | Airflow (Helm on Kind) | MWAA (Managed Airflow)        |
+| Data Processing  | Spark (Standalone)       | Spark (on K8s)         | AWS Glue (Spark runtime)      |
+| Data Lake Format | Iceberg (MinIO-backed)   | Iceberg (MinIO-backed) | Iceberg (S3-backed)           |
+| Metadata DB      | PostgreSQL (Docker)      | PostgreSQL (Pod)       | RDS                           |
+| Monitoring       | Local Logs               | Prometheus / Grafana   | Cloud-native Observability    |
 
 ---
-## Key Features
-- **Scalable Big Data Processing Platform**
-- **Modular and Maintainable Architecture**
-- **Automated Data Pipelines**
-- **Monitoring and Logging**
-- **CI/CD Automation**
-- **Production-Ready Setup**
+
+## **Technology Stack**
 
 
-## Best Practices
-- **Infrastructure as Code (IaC):**
-- **Modular Code Structure:**
-- **Environment Isolation:**
-
-### Local Setup Instructions
-
-## Prerequisites
+* Apache Airflow
+* Apache Spark
+* Apache Iceberg
+* MinIO
 * Docker
-* Docker Compose
 
-## Environment Setup
-1. clone repo
-2. cd into repo
-3. create a .venv file
-4. update environment variables
+---
 
-## start services
-```bash
-# create shared docker network between spark and airflow worker
-docker network create --subnet=172.22.0.0/16 shared-network
+### **Integration Flow**
 
-# start spark services
-docker compose -f docker-compose.spark.yml up -d --build
+The pipeline is designed around a modular, reproducible flow:
 
-# start airflow services
-docker compose -f docker-compose.airflow.yml up -d --build
+```
+        ┌──────────────────┐
+        │   Apache Airflow │
+        │ (Orchestration)  │
+        └──────┬───────────┘
+               │ triggers
+               ▼
+        ┌──────────────────┐
+        │   Apache Spark   │
+        │ (Processing)     │
+        └──────┬───────────┘
+               │ reads/writes
+               ▼
+        ┌──────────────────┐
+        │   Apache Iceberg │
+        │ (Table Format)   │
+        └──────┬───────────┘
+               │ stores on
+               ▼
+        ┌──────────────────┐
+        │   MinIO / S3     │
+        │ (Object Storage) │
+        └──────────────────┘
 ```
 
-# navigate to
-``` bash
-localhost: spark master ui
-locahost: spark history server
-localhost: airflow ui
-localhost: celery flower
-```
+This architecture separates **orchestration**, **processing**, and **storage** concerns, enabling scalability and clear fault boundaries. This modular design enables each layer (orchestration, processing, storage) to evolve independently — for example, switching from MinIO to S3 or scaling Spark from standalone to cluster mode without changing business logic.
 
-# cleanup airflow and spark services
-```bash
-docker compose -f docker-compose.airflow.yml down
-docker compose -f docker-compose.spark.yml down
-```
+## Repository Structure
 
+--
 
-```bash
-# for dev
-docker compose -f docker-compose.spark.yml up -d --build && docker compose -f docker-compose.airflow.yml up -d --build
-docker compose -f docker-compose.airflow.yml down -v && docker compose -f docker-compose.spark.yml down -v
-```
+## Getting Started
 
---master $SPARK_MASTER_URL
+### Prerequisites
 
-spark-submit --executor-memory 1G \
-     --executor-cores 1 \
-     --total-executor-cores 1  \
-     /opt/airflow/scripts/test.py
+Before you begin, ensure you have the following tools installed based on your target environment:
 
-spark-submit --executor-memory 1G \
-     --executor-cores 1 \
-     --total-executor-cores 1  \
-     /opt/airflow/scripts/migrations_v1.py
+- **Docker & Docker Compose** – for running the local development environment.
+- **Kubernetes CLI & Helm** – for deploying on Kind or Minikube.
+- **AWS CLI & Terraform** – for provisioning and deploying to the cloud.
 
 
-airflow url: http://localhost:8080/
-spark master url: http://localhost:8081/
-spark worker-1 url: http://localhost:8082/
-spark worker-2 url: http://localhost:8083/
-spark history-server: http://localhost:18080/
-minio s3 url: http://localhost:9001/
+### Deployment Guides
+
+Each deployment mode has its own setup and configuration guide:
+
+1. [Local (Docker) Deployment](docs/local_docker.md) - easiest to set up and ideal for local development and debugging.
+2. [Local (Kubernetes) Deployment](docs/local_kubernetes.md) - Emulates production using Kind/Minikube with Helm charts.
+3. [Cloud Deployment](docs/aws_cloud.md) - Full production deployment using AWS managed services.
+
+---
+
+## References
+
+* [Apache Airflow Docs](https://airflow.apache.org/docs/apache-airflow/stable/concepts.html)
+* [Apache Spark Docs](https://spark.apache.org/docs/latest/)
+* [Apache Iceberg Docs](https://iceberg.apache.org/docs/latest/)
+* [MinIO Docs](https://www.min.io/)
+* [Docker Docs](https://docs.docker.com/engine/install/)

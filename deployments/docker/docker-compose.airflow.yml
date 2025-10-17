@@ -1,9 +1,10 @@
 ---
 x-airflow-common:
   &airflow-common
-  build:
-    context: ${PROJECT_ROOT_DIR}/deployments/docker
-    target: airflow
+  image: iadebisi/airflow-spark
+  # build:
+  #   context: ${PROJECT_ROOT_DIR}/deployments/docker
+  #   target: airflow
   env_file:
       - .env
   environment:
@@ -43,7 +44,7 @@ services:
       POSTGRES_PASSWORD: ${PG_PASS}
       POSTGRES_DB: ${AIRFLOW_DB}
     volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
+      - postgres-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${PG_USER}"]
       interval: 10s
@@ -134,7 +135,6 @@ services:
       - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       shared-network:
-        # ipv4_address: 172.22.0.10
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -195,4 +195,4 @@ networks:
     external: true
 
 volumes:
-  postgres-db-volume:
+  postgres-db:

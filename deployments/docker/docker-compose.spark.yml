@@ -1,9 +1,10 @@
 ---
 x-spark-common:
   &spark-common
-  build:
-    context: ${PROJECT_ROOT_DIR}/deployments/docker
-    target: spark
+  image: iadebisi/iceberg-spark
+  # build:
+  #   context: ${PROJECT_ROOT_DIR}/deployments/docker
+  #   target: spark
   env_file:
     - .env
   volumes:
@@ -11,15 +12,15 @@ x-spark-common:
 
 name: spark
 services:
-  # data-gen:
-  #   image: iadebisi/ecommerce-data-generator
-  #   command: >
-  #     --customers 20000
-  #     --sellers 2000
-  #     --orders 2000000
-  #     --format parquet
-  #   volumes:
-  #       - ${PROJECT_ROOT_DIR}/raw_input:/data
+  data-gen:
+    image: iadebisi/ecommerce-data-generator
+    command: >
+      --customers 20000
+      --sellers 2000
+      --orders 2000000
+      --format parquet
+    volumes:
+        - ${PROJECT_ROOT_DIR}/raw_input:/data
 
   spark-master:
     <<: *spark-common
@@ -122,8 +123,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-      # data-gen:
-      #   condition: service_completed_successfully
+      data-gen:
+        condition: service_completed_successfully
     environment:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}

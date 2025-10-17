@@ -14,9 +14,9 @@ Other stacks in the *Retail Analytics* series:
 
 The project supports three deployment modes for flexibility across development, testing, and production. Each mode uses the same core architecture but with environment-specific components for orchestration, processing, and storage.
 
-1. Local (Docker): For development and debugging. All services (Airflow, Spark, MinIO, Postgres) run via docker-compose.
-2. Local (Kubernetes): For near production testing. Uses Helm charts for Airflow, Spark, MinIO deployment on Kubernetes.
-3. Cloud Deployment: For production ready deployment using managed services (MWAA, AWS Glue, EMR).
+1. **Local (Docker)**: For development and debugging. All services (Airflow, Spark, MinIO, Postgres) run via docker-compose.
+2. **Local (Kubernetes)**: For near production testing. Uses Helm charts for Airflow, Spark, MinIO deployment on Kubernetes.
+3. **Cloud Deployment**: For production ready deployment using managed services (MWAA, AWS Glue, EMR).
 
 ---
 

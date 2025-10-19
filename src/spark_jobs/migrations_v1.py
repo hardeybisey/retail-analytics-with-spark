@@ -94,7 +94,6 @@ def fact_order_summary(spark: SparkSession) -> None:
     spark.sql(
         """
         CREATE TABLE IF NOT EXISTS fact_order_summary (
-            order_summary_sk STRING NOT NULL,
             customer_sk STRING NOT NULL,
             order_id STRING NOT NULL,
             order_status STRING NOT NULL,
@@ -119,7 +118,6 @@ def fact_order_items(spark: SparkSession) -> None:
     spark.sql(
         """
         CREATE TABLE IF NOT EXISTS fact_order_items (
-            order_item_sk STRING NOT NULL,
             seller_sk STRING NOT NULL,
             product_sk STRING NOT NULL,
             order_id STRING NOT NULL,

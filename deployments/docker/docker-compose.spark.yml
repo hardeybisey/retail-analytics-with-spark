@@ -15,9 +15,9 @@ services:
   data-gen:
     image: iadebisi/ecommerce-data-generator
     command: >
-      --customers 20000
-      --sellers 2000
-      --orders 2000000
+      --customers 2000
+      --sellers 200
+      --orders 200000
       --format parquet
     volumes:
         - ${PROJECT_ROOT_DIR}/raw_input:/data

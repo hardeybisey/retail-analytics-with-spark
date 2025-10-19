@@ -111,7 +111,6 @@ def fct_order_summary_table(spark: SparkSession) -> None:
     )
 
     df = df.select(
-        F.monotonically_increasing_id().alias("order_summary_sk"),
         F.col("customer.customer_sk").alias("customer_sk"),
         F.col("orders.order_id").alias("order_id"),
         F.col("orders.order_status").alias("order_status"),

@@ -27,22 +27,12 @@ def create_stg_product_table(spark: SparkSession) -> None:
     last_updated_date = get_last_updated_date(
         spark_session=spark, table_name="dim_product"
     )
-    df_product = read_parquet(
+    df = read_parquet(
         spark_session=spark, file_name="products.parquet", s3_bucket=S3_INPUTS_BUCKET
-    )
-    df_product_category = read_parquet(
-        spark_session=spark,
-        file_name="product_category.parquet",
-        s3_bucket=S3_INPUTS_BUCKET,
     )
 
     df = (
-        df_product.join(
-            df_product_category,
-            on="product_category_id",
-            how="left",
-        )
-        .withColumn(
+        df.withColumn(
             "product_updated_date",
             F.coalesce(
                 F.to_date(F.col("product_updated_date").cast("string"), "yyyy-MM-dd"),

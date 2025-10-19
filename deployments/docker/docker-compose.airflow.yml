@@ -54,8 +54,6 @@ services:
 
   redis:
     image: redis:7.2-bookworm
-    expose:
-      - 6379
     networks:
         shared-network:
     healthcheck:
@@ -73,7 +71,7 @@ services:
         shared-network:
     command: api-server
     ports:
-      - "8080:8080"
+      - "28080:8080"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
       interval: 30s
@@ -126,8 +124,6 @@ services:
     container_name: airflow-worker
     <<: *airflow-common
     command: celery worker
-    ports:
-      - "4040:4040"
     volumes:
       - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
       - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags

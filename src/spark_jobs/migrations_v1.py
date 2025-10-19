@@ -74,7 +74,6 @@ def dim_product(spark: SparkSession) -> None:
             product_id STRING NOT NULL,
             product_name STRING NOT NULL,
             category_name STRING NOT NULL,
-            sub_category STRING NOT NULL,
             price DECIMAL(10, 2) NOT NULL,
             size_label STRING NOT NULL,
             length_cm FLOAT NOT NULL,

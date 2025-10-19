@@ -35,13 +35,13 @@ services:
       SPARK_METRICS_ENABLED: yes
       SPARK_MASTER_HOST: 0.0.0.0
     ports:
-      - "7077:7077"       # Spark master port
-      - "8081:8080"       # Spark Master UI
+      - "28081:8080"       # Spark Master UI
       - "18080:18080"   # History server UI
     networks:
       shared-network:
     depends_on:
-      - minio
+      minio-client:
+        condition: service_completed_successfully
 
   spark-worker-one:
     <<: *spark-common
@@ -53,8 +53,6 @@ services:
       SPARK_WORKER_MEMORY: 3G
     depends_on:
       - spark-master
-    ports:
-      - "8082:8081"
     networks:
       shared-network:
 
@@ -68,8 +66,6 @@ services:
       SPARK_WORKER_MEMORY: 3G
     depends_on:
       - spark-master
-    ports:
-      - "8083:8081"
     networks:
       shared-network:
 
@@ -88,8 +84,7 @@ services:
       SPARK_MODE: driver
       SPARK_DRIVER_HOST: spark-notebook
     ports:
-      - "8888:8888"
-      - "4041:4040"
+      - "28888:8888"
     networks:
       shared-network:
 
@@ -107,8 +102,8 @@ services:
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
       MINIO_DOMAIN: minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "29000:9000"
+      - "29001:9001"
     networks:
       shared-network:
         aliases:

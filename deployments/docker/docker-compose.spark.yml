@@ -1,9 +1,10 @@
 ---
 x-spark-common:
   &spark-common
-  build:
-    context: ${PROJECT_ROOT_DIR}/deployments/docker
-    target: spark
+  image: iadebisi/iceberg-spark
+  # build:
+  #   context: ${PROJECT_ROOT_DIR}/deployments/docker
+  #   target: spark
   env_file:
     - .env
   volumes:
@@ -11,15 +12,15 @@ x-spark-common:
 
 name: spark
 services:
-  # data-gen:
-  #   image: iadebisi/ecommerce-data-generator
-  #   command: >
-  #     --customers 20000
-  #     --sellers 2000
-  #     --orders 2000000
-  #     --format parquet
-  #   volumes:
-  #       - ${PROJECT_ROOT_DIR}/raw_input:/data
+  data-gen:
+    image: iadebisi/ecommerce-data-generator
+    command: >
+      --customers 2000
+      --sellers 200
+      --orders 200000
+      --format parquet
+    volumes:
+        - ${PROJECT_ROOT_DIR}/raw_input:/data
 
   spark-master:
     <<: *spark-common
@@ -34,13 +35,13 @@ services:
       SPARK_METRICS_ENABLED: yes
       SPARK_MASTER_HOST: 0.0.0.0
     ports:
-      - "7077:7077"       # Spark master port
-      - "8081:8080"       # Spark Master UI
+      - "28081:8080"       # Spark Master UI
       - "18080:18080"   # History server UI
     networks:
       shared-network:
     depends_on:
-      - minio
+      minio-client:
+        condition: service_completed_successfully
 
   spark-worker-one:
     <<: *spark-common
@@ -52,8 +53,6 @@ services:
       SPARK_WORKER_MEMORY: 3G
     depends_on:
       - spark-master
-    ports:
-      - "8082:8081"
     networks:
       shared-network:
 
@@ -67,8 +66,6 @@ services:
       SPARK_WORKER_MEMORY: 3G
     depends_on:
       - spark-master
-    ports:
-      - "8083:8081"
     networks:
       shared-network:
 
@@ -87,8 +84,7 @@ services:
       SPARK_MODE: driver
       SPARK_DRIVER_HOST: spark-notebook
     ports:
-      - "8888:8888"
-      - "4041:4040"
+      - "28888:8888"
     networks:
       shared-network:
 
@@ -106,8 +102,8 @@ services:
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
       MINIO_DOMAIN: minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "29000:9000"
+      - "29001:9001"
     networks:
       shared-network:
         aliases:
@@ -122,8 +118,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-      # data-gen:
-      #   condition: service_completed_successfully
+      data-gen:
+        condition: service_completed_successfully
     environment:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}

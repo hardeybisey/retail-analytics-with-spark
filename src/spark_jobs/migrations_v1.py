@@ -74,7 +74,6 @@ def dim_product(spark: SparkSession) -> None:
             product_id STRING NOT NULL,
             product_name STRING NOT NULL,
             category_name STRING NOT NULL,
-            sub_category STRING NOT NULL,
             price DECIMAL(10, 2) NOT NULL,
             size_label STRING NOT NULL,
             length_cm FLOAT NOT NULL,
@@ -94,7 +93,6 @@ def fact_order_summary(spark: SparkSession) -> None:
     spark.sql(
         """
         CREATE TABLE IF NOT EXISTS fact_order_summary (
-            order_summary_sk STRING NOT NULL,
             customer_sk STRING NOT NULL,
             order_id STRING NOT NULL,
             order_status STRING NOT NULL,
@@ -119,7 +117,6 @@ def fact_order_items(spark: SparkSession) -> None:
     spark.sql(
         """
         CREATE TABLE IF NOT EXISTS fact_order_items (
-            order_item_sk STRING NOT NULL,
             seller_sk STRING NOT NULL,
             product_sk STRING NOT NULL,
             order_id STRING NOT NULL,

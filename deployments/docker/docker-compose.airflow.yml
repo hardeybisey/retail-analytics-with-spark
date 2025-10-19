@@ -1,9 +1,10 @@
 ---
 x-airflow-common:
   &airflow-common
-  build:
-    context: ${PROJECT_ROOT_DIR}/deployments/docker
-    target: airflow
+  image: iadebisi/airflow-spark
+  # build:
+  #   context: ${PROJECT_ROOT_DIR}/deployments/docker
+  #   target: airflow
   env_file:
       - .env
   environment:
@@ -43,7 +44,7 @@ services:
       POSTGRES_PASSWORD: ${PG_PASS}
       POSTGRES_DB: ${AIRFLOW_DB}
     volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
+      - postgres-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${PG_USER}"]
       interval: 10s
@@ -53,8 +54,6 @@ services:
 
   redis:
     image: redis:7.2-bookworm
-    expose:
-      - 6379
     networks:
         shared-network:
     healthcheck:
@@ -72,7 +71,7 @@ services:
         shared-network:
     command: api-server
     ports:
-      - "8080:8080"
+      - "28080:8080"
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/version"]
       interval: 30s
@@ -125,8 +124,6 @@ services:
     container_name: airflow-worker
     <<: *airflow-common
     command: celery worker
-    ports:
-      - "4040:4040"
     volumes:
       - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
       - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags
@@ -134,7 +131,6 @@ services:
       - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       shared-network:
-        # ipv4_address: 172.22.0.10
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -195,4 +191,4 @@ networks:
     external: true
 
 volumes:
-  postgres-db-volume:
+  postgres-db:

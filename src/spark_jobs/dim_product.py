@@ -27,22 +27,12 @@ def create_stg_product_table(spark: SparkSession) -> None:
     last_updated_date = get_last_updated_date(
         spark_session=spark, table_name="dim_product"
     )
-    df_product = read_parquet(
+    df = read_parquet(
         spark_session=spark, file_name="products.parquet", s3_bucket=S3_INPUTS_BUCKET
-    )
-    df_product_category = read_parquet(
-        spark_session=spark,
-        file_name="product_category.parquet",
-        s3_bucket=S3_INPUTS_BUCKET,
     )
 
     df = (
-        df_product.join(
-            df_product_category,
-            on="product_category_id",
-            how="left",
-        )
-        .withColumn(
+        df.withColumn(
             "product_updated_date",
             F.coalesce(
                 F.to_date(F.col("product_updated_date").cast("string"), "yyyy-MM-dd"),
@@ -58,7 +48,6 @@ def create_stg_product_table(spark: SparkSession) -> None:
         {
             "product_category_id": "category_id",
             "product_category": "category_name",
-            "product_sub_category": "sub_category",
             "product_size_label": "size_label",
             "product_price": "price",
             "product_length_cm": "length_cm",
@@ -71,7 +60,6 @@ def create_stg_product_table(spark: SparkSession) -> None:
         "product_id",
         "product_name",
         "category_name",
-        "sub_category",
         "price",
         "size_label",
         "length_cm",
@@ -109,10 +97,8 @@ def create_product_scd2(spark: SparkSession) -> None:
         how="fullouter",
     )
 
-    common_filter = (
-        (F.col("d.price") != F.col("s.price"))
-        | (F.col("d.category_name") != F.col("s.category_name"))
-        | (F.col("d.sub_category") != F.col("s.sub_category"))
+    common_filter = (F.col("d.price") != F.col("s.price")) | (
+        F.col("d.category_name") != F.col("s.category_name")
     )
 
     new_records = (
@@ -122,7 +108,6 @@ def create_product_scd2(spark: SparkSession) -> None:
             F.col("s.product_name"),
             F.col("s.price"),
             F.col("s.category_name"),
-            F.col("s.sub_category"),
             F.col("s.size_label"),
             F.col("s.length_cm"),
             F.col("s.height_cm"),
@@ -152,7 +137,6 @@ def create_product_scd2(spark: SparkSession) -> None:
             F.col("d.product_id").alias("product_id"),
             F.col("d.product_name").alias("product_name"),
             F.col("d.category_name").alias("category_name"),
-            F.col("d.sub_category").alias("sub_category"),
             F.col("d.price").alias("price"),
             F.col("d.size_label").alias("size_label"),
             F.col("d.length_cm").alias("length_cm"),

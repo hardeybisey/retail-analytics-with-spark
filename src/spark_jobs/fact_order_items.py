@@ -72,7 +72,6 @@ def fct_order_items_table(spark: SparkSession) -> None:
     )
 
     df = df.select(
-        F.monotonically_increasing_id().alias("order_item_sk"),
         F.col("sellers.seller_sk").alias("seller_sk"),
         F.col("products.product_sk").alias("product_sk"),
         F.col("order_items.order_id").alias("order_id"),

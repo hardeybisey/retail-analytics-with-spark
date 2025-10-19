@@ -5,8 +5,6 @@ Build a scalable, end-to-end Retail Analytics Pipeline using Apache Spark, orche
 
 Other stacks in the *Retail Analytics* series:
 - [Retail Analytics with Dbt](https://github.com/hardeybisey/retail-analytics-with-dbt)
-- [Retail Analytics with Dataflow](https://github.com/hardeybisey/retail-analytics-with-dataflow)
-- [Retail Analytics with SQLMesh](https://github.com/hardeybisey/retail-analytics-with-sqlmesh)
 
 ---
 
@@ -76,10 +74,12 @@ This architecture separates **orchestration**, **processing**, and **storage** c
 
 ## Repository Structure
 ```
+.
 ├── airflow
 │   ├── config
 │   ├── dags
-│   │
+│   │   └──
+│   └── logs
 ├── conf
 ├── deployments
 │   ├── aws
@@ -87,11 +87,13 @@ This architecture separates **orchestration**, **processing**, and **storage** c
 │   ├── docker
 │   └── kubernetes
 ├── docs
+├── images
 ├── jars
 ├── notebooks
 ├── raw_input
 └── src
     ├── spark_jobs
+    │   └──
     └── test
 ```
 --
@@ -111,9 +113,9 @@ Before you begin, ensure you have the following tools installed based on your ta
 
 Each deployment mode has its own setup and configuration guide:
 
-1. [Local (Docker) Deployment](docs/local_docker.md) - easiest to set up and ideal for local development and debugging.
-2. [Local (Kubernetes) Deployment](docs/local_kubernetes.md) - Emulates production using Kind/Minikube with Helm charts.
-3. [Cloud Deployment](docs/aws_cloud.md) - Full production deployment using AWS managed services.
+1. [Local (Docker)](docs/local_docker.md) - easiest to set up and ideal for local development and debugging.
+2. [Local (Kubernetes)](docs/local_kubernetes.md) - Emulates production using Kind/Minikube with Helm charts.
+3. [Cloud](docs/aws_cloud.md) - Full production deployment using AWS managed services.
 
 ---
 

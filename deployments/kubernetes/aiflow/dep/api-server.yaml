@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  namespace: airflow
+  labels:
+    tier: airflow
+    app: api-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: airflow
+      app: api-server
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        app: api-server
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      securityContext:
+        runAsUser: 50000
+        fsGroup: 0
+      initContainers:
+        - name: wait-for-airflow-migrations
+          resources: {}
+          image: apache/airflow:3.0.2
+          imagePullPolicy: IfNotPresent
+          securityContext: {}
+          args:
+            - airflow
+            - db
+            - check-migrations
+            - --migration-wait-timeout=60
+          volumeMounts:
+            - name: airflow-data
+              mountPath: /opt/airflow/logs
+              subPath: logs
+            - name: airflow-data
+              mountPath: /opt/airflow/dags
+              subPath: dags
+              readOnly: true
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+      containers:
+        - name: api-server
+          image: apache/airflow:3.0.2
+          imagePullPolicy: IfNotPresent
+          command: ["bash", "-c", "exec airflow api-server"]
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "500Mi"
+            limits:
+              cpu: "400m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: airflow-data
+              mountPath: /opt/airflow/logs
+              subPath: logs
+            - name: airflow-data
+              mountPath: /opt/airflow/dags
+              subPath: dags
+              readOnly: true
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          ports:
+            - name: api-server-ui
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/v2/version
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            failureThreshold: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/v2/version
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            failureThreshold: 3
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /api/v2/version
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            failureThreshold: 3
+            periodSeconds: 10
+      volumes:
+        - name: airflow-data
+          persistentVolumeClaim:
+            claimName: airflow-pvc
+      # volumes:
+      #   - name: config
+      #     configMap:
+      #       name: airflow-file-config

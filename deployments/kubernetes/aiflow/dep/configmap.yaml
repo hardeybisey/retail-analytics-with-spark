@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-config
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: airflow-config
+data:
+  AIRFLOW_HOME: /opt/airflow
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://api-server:8080/execution/'
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+  AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+
+  # webserver_config.py: |-
+  #   ""
+  # airflow.cfg: |-
+  #   ""
+
+  # airflow_local_settings.py: |-
+  #   ""
+
+  # known_hosts: |-
+  #   ""

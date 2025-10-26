@@ -1,0 +1,132 @@
+######################################
+## Postgres Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: postgres
+  ports:
+    - name: postgres-port
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+######################################
+## Postgres Persistent Volume
+######################################
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+spec:
+  capacity:
+    storage: 500Mi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/postgres
+    type: DirectoryOrCreate
+---
+######################################
+## Postgres Secret
+######################################
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secrets
+  namespace: airflow
+  labels:
+    tier: postgres
+    component: postgres-secrets
+data:
+  POSTGRES_USER: YWlyZmxvdw==
+  POSTGRES_PASSWORD: YWlyZmxvdw==
+  POSTGRES_DB: YWlyZmxvdw==
+---
+######################################
+## Postgres Statefulset
+######################################
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-deployment
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: postgres
+  template:
+    metadata:
+      labels:
+        component: postgres
+    spec:
+      serviceAccountName: airflow-sa
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:13.22-alpine
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "125m"
+              memory: "128Mi"
+              ephemeral-storage: "200Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+              ephemeral-storage: "500Mi"
+          ports:
+            - name: postgres-port
+              containerPort: 5432
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "${POSTGRES_USER}" -d postgres
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "${POSTGRES_USER}" -d postgres
+                # - exec pg_isready -U "${POSTGRES_USER}" -h 127.0.0.1 -p 5432
+          volumeMounts:
+            - name: postgres-storage
+              # mountPath: /bitnami/postgresql
+              mountPath: /var/lib/postgresql/data
+          envFrom:
+            - secretRef:
+                name: postgres-secrets
+
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: postgres-storage
+      spec:
+        volumeName: postgres-pv
+        storageClassName: ""
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "500Mi"

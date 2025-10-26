@@ -1,0 +1,126 @@
+######################################
+## Airflow Namespace
+######################################
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: airflow
+######################################
+## Airflow ServiceAccount
+######################################
+---
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: airflow-sa
+  namespace: airflow
+  labels:
+    tier: airflow
+---
+######################################
+## Airflow Role
+######################################
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: airflow-role
+  namespace: airflow
+  labels:
+    tier: airflow
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - "pods"
+      - "pods/log"
+      - "services"
+      - "configmaps"
+      - "secrets"
+    verbs:
+      - "create"
+      - "list"
+      - "get"
+      - "patch"
+      - "watch"
+      - "delete"
+  - apiGroups:
+      - "list"
+    resources:
+      - "jobs"
+    verbs:
+      - "create"
+      - "update"
+      - "patch"
+      - "delete"
+######################################
+## Airflow RoleBinding
+######################################
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: airflow
+  name: airflow-rolebinding
+  labels:
+    tier: airflow
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: airflow-role
+subjects:
+  - kind: ServiceAccount
+    name: airflow-sa
+    namespace: airflow
+######################################
+## Airflow ConfigMap
+######################################
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-config
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: airflow-config
+data:
+  AIRFLOW_HOME: /opt/airflow
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://api-server-svc:8080/execution/'
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+  AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+
+  # webserver_config.py: |-
+  #   ""
+  # airflow.cfg: |-
+  #   ""
+
+  # airflow_local_settings.py: |-
+  #   ""
+
+  # known_hosts: |-
+  #   ""
+######################################
+## Airflow Secret
+######################################
+---
+apiVersion: v1
+kind: Secret
+data:
+  AIRFLOW_USER: YWlyZmxvdw==
+  AIRFLOW_PASS: YWlyZmxvdw==
+  AIRFLOW__API__SECRET_KEY: bXlyYW5kb21rZXk=
+  AIRFLOW__CELERY__BROKER_URL: cmVkaXM6Ly86YWlyZmxvd0ByZWRpcy1zdmM6NjM3OS8w
+  AIRFLOW__CELERY__RESULT_BACKEND: ZGIrcG9zdGdyZXNxbDovL2FpcmZsb3c6JGFpcmZsb3dAcG9zdGdyZXMtc3ZjL2FpcmZsb3c=
+  AIRFLOW__CORE__FERNET_KEY: bXlyYW5kb21rZXk=
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: cG9zdGdyZXNxbCtwc3ljb3BnMjovL2FpcmZsb3c6YWlyZmxvd0Bwb3N0Z3Jlcy1zdmMvYWlyZmxvdw==
+metadata:
+  name: airflow-secrets
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: airflow-secrets

@@ -1,0 +1,117 @@
+######################################
+## Redis Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: redis
+  ports:
+    - name: redis-port
+      protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+######################################
+## Redis Persistent Volume
+######################################
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv
+spec:
+  capacity:
+    storage: 500Mi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/redis
+    type: DirectoryOrCreate
+---
+######################################
+## Redis Secret
+######################################
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secrets
+  namespace: airflow
+  labels:
+    tier: redis
+    component: redis-secrets
+data:
+  REDIS_PASSWORD: YWlyZmxvdw==
+---
+######################################
+## Redis Statefulset
+######################################
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-deployment
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: redis
+  template:
+    metadata:
+      labels:
+        component: redis
+    spec:
+      serviceAccountName: airflow-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: redis
+          image: redis:7.2-bookworm
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: "125m"
+              memory: "128Mi"
+              ephemeral-storage: "200Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+              ephemeral-storage: "500Mi"
+          ports:
+            - name: redis-port
+              containerPort: 6379
+          command: ["/bin/sh", "-c", "redis-server --requirepass ${REDIS_PASSWORD}"]
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command: ["redis-cli", "ping"]
+          volumeMounts:
+            - name: redis-storage
+              mountPath: /data
+          envFrom:
+            - secretRef:
+                name: redis-secrets
+
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: redis-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        volumeName: redis-pv
+        storageClassName: ""
+        resources:
+          requests:
+            storage: "500Mi"

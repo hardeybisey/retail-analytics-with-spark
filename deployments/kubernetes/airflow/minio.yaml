@@ -1,7 +1,11 @@
+######################################
+## Minio Server Service
+######################################
 apiVersion: v1
 kind: Service
 metadata:
   name: minio-svc
+  namespace: airflow
 spec:
   type: ClusterIP
   selector:
@@ -16,20 +20,28 @@ spec:
       port: 9001
       targetPort: minio-console
 ---
+######################################
+## Minio ConfigMap
+######################################
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: minio-config
+  namespace: airflow
 data:
   S3_LOGS_BUCKET: logs
   S3_INPUTS_BUCKET: raw-inputs
   S3_WH_BUCKET: warehouse
   S3_STG_BUCKET: staging-area
 ---
+######################################
+## Minio Secret
+######################################
 apiVersion: v1
 kind: Secret
 metadata:
   name: minio-secret
+  namespace: airflow
 type: Opaque
 data:
   AWS_ACCESS_KEY_ID: bWluaW9hZG1pbgo= # minioadmin
@@ -37,10 +49,14 @@ data:
   MINIO_ROOT_USER: bWluaW9hZG1pbgo= # minioadmin
   MINIO_ROOT_PASSWORD: bWluaW9hZG1pbgo= # minioadmin
 ---
+######################################
+## Minio PersistentVolume
+######################################
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name:  minio-pv
+  namespace: airflow
 spec:
   capacity: 
     storage: 1Gi
@@ -51,10 +67,14 @@ spec:
     path: /home/data
     type: DirectoryOrCreate
 ---
+######################################
+## Minio PersistentVolumeClaim
+######################################
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: minio-pv-claim
+  namespace: airflow
 spec:
   storageClassName: ""
   accessModes:
@@ -63,10 +83,14 @@ spec:
     requests:
       storage: 1Gi
 ---
+######################################
+## Minio StatefulSet
+######################################
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: minio
+  namespace: airflow
 spec:
   selector:
     matchLabels:
@@ -113,10 +137,14 @@ spec:
           requests:
             storage: 1Gi
 ---
+######################################
+## Minio Job
+######################################
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: minio-setup-job
+  namespace: airflow
   labels:
     component: minio-setup-job
 spec:

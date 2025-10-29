@@ -1,43 +1,25 @@
 ######################################
-## API Server Service
-######################################
-apiVersion: v1
-kind: Service
-metadata:
-  name: api-server-svc
-  namespace: airflow
-spec:
-  type: ClusterIP
-  selector:
-    component: api-server
-  ports:
-    - name: api-server-port
-      protocol: TCP
-      port: 8080
-      targetPort: 8080
----
-######################################
-## API Server Deployment
+## Dag Processor Deployment
 ######################################
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-server
+  name: dag-processor
   namespace: airflow
   labels:
     tier: airflow
-    component: api-server
+    component: dag-processor
 spec:
   replicas: 1
   selector:
     matchLabels:
       tier: airflow
-      component: api-server
+      component: dag-processor
   template:
     metadata:
       labels:
         tier: airflow
-        component: api-server
+        component: dag-processor
     spec:
       serviceAccountName: airflow-sa
       restartPolicy: Always
@@ -50,30 +32,35 @@ spec:
             claimName: airflow-pvc
       initContainers:
         - name: wait-for-airflow-migrations
-          resources: {}
           image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
-          securityContext: {}
-          args:
-            - airflow
-            - db
-            - check-migrations
-            - --migration-wait-timeout=60
+          resources:
+            requests:
+              cpu: 200m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
           volumeMounts:
             - name: airflow-data
               mountPath: "/opt/airflow/airflow.cfg"
               subPath: config/airflow.cfg
               readOnly: true
+          args: ["airflow", "db", "check-migrations", "--migration-wait-timeout=60"]
           envFrom:
             - configMapRef:
                 name: airflow-config
             - secretRef:
                 name: airflow-secrets
       containers:
-        - name: api-server
+        - name: dag-processor
           image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
-          command: ["bash", "-c", "exec airflow api-server"]
+          command: []
+          args:
+            - bash
+            - -c
+            - exec airflow dag-processor
           resources: {}
             # requests:
             #   cpu: "200m"
@@ -85,6 +72,7 @@ spec:
             - name: airflow-data
               mountPath: /opt/airflow/logs
               subPath: logs
+              readOnly: false
             - name: airflow-data
               mountPath: /opt/airflow/dags
               subPath: dags
@@ -98,31 +86,15 @@ spec:
                 name: airflow-config
             - secretRef:
                 name: airflow-secrets
-          ports:
-            - name: api-server-port
-              containerPort: 8080
-              protocol: TCP
           livenessProbe:
-            httpGet:
-              path: /api/v2/version
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /api/v2/version
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
-          startupProbe:
-            httpGet:
-              path: /api/v2/version
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
+            initialDelaySeconds: 10
+            timeoutSeconds: 20
+            failureThreshold: 5
+            periodSeconds: 60
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  CONNECTION_CHECK_MAX_COUNT=0 AIRFLOW__LOGGING__LOGGING_LEVEL=ERROR exec /entrypoint \
+                  airflow jobs check --local --job-type DagProcessorJob

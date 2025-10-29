@@ -26,7 +26,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: run-migrations
-          image: apache/airflow:3.0.2
+          image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
           # command: []
           args:
@@ -40,13 +40,13 @@ spec:
                 name: airflow-config
             - secretRef:
                 name: airflow-secrets
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "200m"
-              memory: "256Mi"
+          resources: {}
+            # requests:
+            #   cpu: "100m"
+            #   memory: "128Mi"
+            # limits:
+            #   cpu: "200m"
+            #   memory: "256Mi"
           volumeMounts:
             - name: airflow-data
               mountPath: "/opt/airflow/airflow.cfg"
@@ -85,7 +85,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: create-user
-          image: apache/airflow:3.0.2
+          image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
           # command: []
           args:
@@ -104,13 +104,13 @@ spec:
                 name: airflow-config
             - secretRef:
                 name: airflow-secrets
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "200m"
-              memory: "256Mi"
+          resources: {}
+            # requests:
+            #   cpu: "100m"
+            #   memory: "128Mi"
+            # limits:
+            #   cpu: "200m"
+            #   memory: "256Mi"
           volumeMounts:
             - name: airflow-data
               mountPath: "/opt/airflow/airflow.cfg"
@@ -120,4 +120,3 @@ spec:
         - name: airflow-data
           persistentVolumeClaim:
             claimName: airflow-pvc
-

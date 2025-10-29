@@ -1,0 +1,241 @@
+######################################
+## Spark Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-svc
+  namespace: airflow
+spec:
+  selector:
+    component: spark-master
+  ports:
+  - name: master-port
+    port: 7077
+    protocol: TCP
+    targetPort: master-port
+  - name: master-ui
+    port: 8081
+    protocol: TCP
+    targetPort: master-ui
+  - name: history-server
+    port: 18080
+    protocol: TCP
+    targetPort: history-server
+  - name: spark-worker
+    port: 8082
+    protocol: TCP
+    targetPort: spark-worker
+---
+######################################
+## Spark Secret
+######################################
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spark-secrets
+  namespace: airflow
+type: Opaque
+data:
+  AWS_ACCESS_KEY_ID: bWluaW9hZG1pbg== # minioadmin
+  AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbg== # minioadmin
+  AWS_REGION: dXMtZWFzdC0x # us-east-1
+---
+######################################
+## Spark ConfigMap
+######################################
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-config
+  namespace: airflow
+data:
+  SPARK_MASTER_URL: spark://spark-svc:7077
+  AWS_URL_ENDPOINT: http://minio-svc:9000
+  SPARK_PUBLIC_DNS: localhost
+
+  spark-defaults.conf: |
+    spark.master=spark://spark-master:7077
+
+    # Hadoop S3 / MinIO related settings
+    spark.hadoop.fs.s3a.endpoint=http://minio:9000
+    spark.hadoop.fs.s3a.path.style.access=true
+    spark.hadoop.fs.s3a.connection.ssl.enabled=false
+    spark.hadoop.fs.s3a.fast.upload=true
+    spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.hadoop.fs.s3a.checksum.type=CRC32C
+    spark.hadoop.fs.s3a.etag.checksum.enabled=true
+    spark.hadoop.fs.s3a.multipart.uploads.enabled=true
+    spark.hadoop.fs.s3a.multipart.size=134217728
+
+
+    # Event log and history server settings
+    spark.eventLog.enabled=true
+    spark.eventLog.dir=s3a://demo-logs/spark-events
+    spark.history.fs.logDirectory=s3a://demo-logs/spark-events
+    spark.eventLog.rolling.enabled=true
+    spark.eventLog.rolling.maxFileSize=128m
+    spark.worker.ui.host=localhost
+
+    # Configure Iceberg Catalogue
+    spark.sql.defaultCatalog=demo
+    spark.sql.catalog.demo.type=hadoop
+    spark.sql.catalog.demo=org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.demo.warehouse=s3a://demo-warehouse/
+    spark.sql.catalog.demo.s3.endpoint=http://minio-svc:9000
+    spark.sql.catalog.demo.default-namespace=retail_analytics
+    spark.sql.catalog.demo.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+    spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.demo.s3.checksum-enabled=true
+    spark.sql.catalog.demo.s3.multipart-upload-enabled=true
+    spark.sql.catalog.demo.s3.multipart.size=134217728
+    spark.sql.catalog.demo.s3.multipart.threshold=134217728
+
+    # # Executors default settings
+    spark.driver.memory=1G
+    spark.driver.core=1
+    spark.executor.cores=1
+    spark.executor.memory=1G
+    spark.executor.instances=1
+    spark.cores.max=1
+---
+######################################
+## Spark Master Deployment
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master-deployment
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: spark-master
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: spark-master
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 0
+        runAsUser: 0
+        runAsGroup: 0
+      volumes:
+        # - name: spark-jobs
+        #   persistentVolumeClaim:
+        #     claimName: spark-pv
+        - name: config
+          configMap:
+            name: spark-config
+      containers:
+      - name: master
+        image: iadebisi/iceberg-spark
+        # command:
+        args: ["master"]
+        resources: {}
+          # limits:
+          #   memory: 128Mi
+          #   cpu: 500m
+          # requests:
+          #   memory: 128Mi
+          #   cpu: 500m
+        volumeMounts:
+          # - name: spark-jobs
+          #   mountPath: /opt/spark/conf
+          #   subPath: ""
+          #   readOnly: true
+          - name: config
+            mountPath: /opt/spark/conf/spark-defaults.conf
+            subPath: spark-defaults.conf
+        envFrom:
+          - configMapRef:
+              name: spark-config
+          - secretRef:
+              name: spark-secrets
+        env:
+          - name: SPARK_MODE
+            value: "master"
+          - name: SPARK_SSL_ENABLED
+            value: "no"
+          - name: SPARK_RPC_AUTHENTICATION_ENABLED
+            value: "no"
+          - name: SPARK_RPC_ENCRYPTION_ENABLED
+            value: "no"
+          - name: SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED
+            value: "no"
+          - name: SPARK_METRICS_ENABLED
+            value: "yes"
+          - name: SPARK_MASTER_HOST
+            value: "0.0.0.0"
+        ports:
+          - name: master-ui
+            containerPort: 8080
+          - name: history-server
+            containerPort: 18080
+          - name: master-port
+            containerPort: 7077
+---
+######################################
+## Spark Worker Deployment
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker-deployment
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: spark-worker
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: spark-worker
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 0
+        runAsGroup: 0
+        runAsUser: 0
+      volumes:
+        - name: spark-config
+          configMap:
+            name: spark-config
+      containers:
+      - name: spark-worker
+        image: iadebisi/iceberg-spark
+        resources: {}
+          # limits:
+          #   memory: 128Mi
+          #   cpu: 500m
+          # requests:
+          #   memory: 128Mi
+          #   cpu: 500m
+        args: ["worker"]
+        envFrom:
+          - configMapRef:
+              name: spark-config
+          - secretRef:
+              name: spark-secrets
+        env:
+          - name: SPARK_MODE
+            value: worker
+          - name: SPARK_WORKER_CORES
+            value: "3"
+          - name: SPARK_WORKER_MEMORY
+            value: 3G
+        volumeMounts:
+          - name: spark-config
+            mountPath: /opt/spark/conf/spark-defaults.conf
+            subPath: spark-defaults.conf
+            readOnly: true
+        ports:
+          - name: spark-worker
+            containerPort: 8081

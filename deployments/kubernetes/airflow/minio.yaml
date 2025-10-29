@@ -29,10 +29,10 @@ metadata:
   name: minio-config
   namespace: airflow
 data:
-  S3_LOGS_BUCKET: logs
-  S3_INPUTS_BUCKET: raw-inputs
-  S3_WH_BUCKET: warehouse
-  S3_STG_BUCKET: staging-area
+  S3_LOGS_BUCKET: demo-logs
+  S3_INPUTS_BUCKET: demo-input
+  S3_WH_BUCKET: demo-warehouse
+  S3_STG_BUCKET: demo-staging
 ---
 ######################################
 ## Minio Secret
@@ -44,10 +44,10 @@ metadata:
   namespace: airflow
 type: Opaque
 data:
-  AWS_ACCESS_KEY_ID: bWluaW9hZG1pbgo= # minioadmin
-  AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbgo= # minioadmin
-  MINIO_ROOT_USER: bWluaW9hZG1pbgo= # minioadmin
-  MINIO_ROOT_PASSWORD: bWluaW9hZG1pbgo= # minioadmin
+  AWS_ACCESS_KEY_ID: bWluaW9hZG1pbg== # minioadmin
+  AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbg== # minioadmin
+  MINIO_ROOT_USER: bWluaW9hZG1pbg== # minioadmin
+  MINIO_ROOT_PASSWORD: bWluaW9hZG1pbg== # minioadmin
 ---
 ######################################
 ## Minio PersistentVolume
@@ -58,50 +58,53 @@ metadata:
   name:  minio-pv
   namespace: airflow
 spec:
-  capacity: 
+  capacity:
     storage: 1Gi
   storageClassName: ""
   accessModes:
     - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
   hostPath:
-    path: /home/data
+    path: /home/minio
     type: DirectoryOrCreate
 ---
-######################################
-## Minio PersistentVolumeClaim
-######################################
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: minio-pv-claim
-  namespace: airflow
-spec:
-  storageClassName: ""
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
----
+# ######################################
+# ## Minio PersistentVolumeClaim
+# ######################################
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: minio-pvc
+#   namespace: airflow
+# spec:
+#   storageClassName: ""
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 500Mi
+# ---
 ######################################
 ## Minio StatefulSet
 ######################################
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: minio
+  name: minio-deployment
   namespace: airflow
 spec:
+  serviceName: minio-svc
+  replicas: 1
   selector:
     matchLabels:
       component: minio
-  serviceName: minio
-  replicas: 1
   template:
     metadata:
       labels:
         component: minio
     spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -110,7 +113,15 @@ spec:
         - name: minio
           image: minio/minio:latest
           imagePullPolicy: IfNotPresent
-          restartPolicy: Always
+          resources: {}
+            # requests:
+            #   cpu: "125m"
+            #   memory: "128Mi"
+            #   ephemeral-storage: "200Mi"
+            # limits:
+            #   cpu: "250m"
+            #   memory: "256Mi"
+            #   ephemeral-storage: "500Mi"
           args: ["server", "/data", "--console-address", ":9001"]
           volumeMounts:
             - name: minio-data
@@ -129,13 +140,13 @@ spec:
       metadata:
         name: minio-data
       spec:
-        # volumeName: minio-storage
-        # storageClassName: ""
-        accessModes: 
+        volumeName: minio-pv
+        storageClassName: ""
+        accessModes:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 1Gi
+            storage: 500Mi
 ---
 ######################################
 ## Minio Job
@@ -160,9 +171,8 @@ spec:
         fsGroup: 0
       restartPolicy: OnFailure
       volumes:
-        - name: minio-data
-          persistentVolumeClaim:
-            claimName: minio-pv-claim
+        - name: init-data
+          emptyDir: {}
       initContainers:
         - name: data-generator
           image: iadebisi/ecommerce-data-generator
@@ -170,7 +180,7 @@ spec:
           restartPolicy: OnFailure
           args: ["--customers", "2000", "--sellers", "200", "--orders", "200000", "--format", "parquet", "--output_dir", "/tmp/data"]
           volumeMounts:
-            - name: minio-data
+            - name: init-data
               mountPath: /tmp/data
       containers:
         - name: minio-client
@@ -179,9 +189,9 @@ spec:
           restartPolicy: OnFailure
           command: ["/bin/sh", "-c"]
           volumeMounts:
-              - name: minio-data
-                mountPath: /tmp/data
-                readOnly: true
+            - name: init-data
+              mountPath: /tmp/data
+              readOnly: true
           args:
             - |
               sleep 5 &&

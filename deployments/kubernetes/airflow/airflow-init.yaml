@@ -89,7 +89,6 @@ data:
   AIRFLOW__CORE__EXECUTOR: CeleryExecutor
   AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://api-server-svc:8080/execution/'
   AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
-  AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
   AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
   AIRFLOW__CORE__LOAD_EXAMPLES: "false"
   AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
@@ -111,12 +110,15 @@ data:
 apiVersion: v1
 kind: Secret
 data:
-  AIRFLOW_USER: YWlyZmxvdw==
-  AIRFLOW_PASS: YWlyZmxvdw==
-  AIRFLOW__API__SECRET_KEY: bXlyYW5kb21rZXk=
+  AIRFLOW_USER: YWlyZmxvdw== # airflow
+  AIRFLOW_PASS: YWlyZmxvdw== # airflow
+  AIRFLOW__API__SECRET_KEY: bXlyYW5kb21rZXk= # myrandomkey
+  AIRFLOW__CORE__FERNET_KEY: bXlyYW5kb21rZXk= # myrandomkey
+  # AIRFLOW__CELERY__BROKER_URL=redis://:airflow@redis-svc:6379/0
   AIRFLOW__CELERY__BROKER_URL: cmVkaXM6Ly86YWlyZmxvd0ByZWRpcy1zdmM6NjM3OS8w
-  AIRFLOW__CELERY__RESULT_BACKEND: ZGIrcG9zdGdyZXNxbDovL2FpcmZsb3c6JGFpcmZsb3dAcG9zdGdyZXMtc3ZjL2FpcmZsb3c=
-  AIRFLOW__CORE__FERNET_KEY: bXlyYW5kb21rZXk=
+  # AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql+psycopg2://airflow:airflow@postgres-svc/airflow
+  AIRFLOW__CELERY__RESULT_BACKEND: ZGIrcG9zdGdyZXNxbCtwc3ljb3BnMjovL2FpcmZsb3c6YWlyZmxvd0Bwb3N0Z3Jlcy1zdmMvYWlyZmxvdw==
+  # AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-svc/airflow
   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: cG9zdGdyZXNxbCtwc3ljb3BnMjovL2FpcmZsb3c6YWlyZmxvd0Bwb3N0Z3Jlcy1zdmMvYWlyZmxvdw==
 metadata:
   name: airflow-secrets
@@ -124,3 +126,40 @@ metadata:
   labels:
     tier: airflow
     component: airflow-secrets
+######################################
+## Airflow PersistentVolume
+######################################
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: airflow-pv
+  namespace: airflow
+spec:
+  capacity:
+    storage: 1Gi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  # persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/airflow
+    type: Directory
+######################################
+## Airflow PersistentVolumeClaim
+######################################
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-pvc
+  namespace: airflow
+  labels:
+    tier: airflow
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi

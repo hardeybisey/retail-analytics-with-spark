@@ -14,7 +14,7 @@ spec:
     - name: redis-port
       protocol: TCP
       port: 6379
-      targetPort: 6379
+      targetPort: redis-port
 ---
 ######################################
 ## Redis Persistent Volume
@@ -46,7 +46,7 @@ metadata:
     tier: redis
     component: redis-secrets
 data:
-  REDIS_PASSWORD: YWlyZmxvdw==
+  REDIS_PASSWORD: YWlyZmxvdw== # airflow
 ---
 ######################################
 ## Redis Statefulset
@@ -57,6 +57,7 @@ metadata:
   name: redis-deployment
   namespace: airflow
 spec:
+  serviceName: redis-svc
   replicas: 1
   selector:
     matchLabels:
@@ -74,15 +75,15 @@ spec:
         - name: redis
           image: redis:7.2-bookworm
           imagePullPolicy: IfNotPresent
-          resources:
-            requests:
-              cpu: "125m"
-              memory: "128Mi"
-              ephemeral-storage: "200Mi"
-            limits:
-              cpu: "250m"
-              memory: "256Mi"
-              ephemeral-storage: "500Mi"
+          resources: {}
+            # requests:
+            #   cpu: "125m"
+            #   memory: "128Mi"
+            #   ephemeral-storage: "200Mi"
+            # limits:
+            #   cpu: "250m"
+            #   memory: "256Mi"
+            #   ephemeral-storage: "500Mi"
           ports:
             - name: redis-port
               containerPort: 6379
@@ -96,7 +97,7 @@ spec:
             exec:
               command: ["redis-cli", "ping"]
           volumeMounts:
-            - name: redis-storage
+            - name: redis-data
               mountPath: /data
           envFrom:
             - secretRef:
@@ -106,7 +107,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: redis-storage
+        name: redis-data
       spec:
         accessModes:
           - ReadWriteOnce

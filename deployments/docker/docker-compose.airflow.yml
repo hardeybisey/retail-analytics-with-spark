@@ -127,7 +127,7 @@ services:
     volumes:
       - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
       - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags
-      - ${PROJECT_ROOT_DIR}/src/spark_jobs:/opt/spark/spark_jobs
+      - ${PROJECT_ROOT_DIR}/airflow/spark_jobs:/opt/spark/spark_jobs
       - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       shared-network:

@@ -1,31 +1,61 @@
 ######################################
-## Spark Service
+## Spark Master Headless Service
 ######################################
 apiVersion: v1
 kind: Service
 metadata:
-  name: spark-svc
+  name: spark-headless-svc
   namespace: airflow
 spec:
+  type: ClusterIP
+  clusterIP: None
   selector:
     component: spark-master
   ports:
-  - name: master-port
-    port: 7077
-    protocol: TCP
-    targetPort: master-port
-  - name: master-ui
-    port: 8081
-    protocol: TCP
-    targetPort: master-ui
-  - name: history-server
-    port: 18080
-    protocol: TCP
-    targetPort: history-server
-  - name: spark-worker
-    port: 8082
-    protocol: TCP
-    targetPort: spark-worker
+    - name: master-port
+      port: 7077
+      protocol: TCP
+      targetPort: master-port
+---
+######################################
+## Spark Master Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-ui-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: spark-master
+  ports:
+    - name: master-ui
+      port: 8081
+      protocol: TCP
+      targetPort: master-ui
+    - name: history-server
+      port: 18080
+      protocol: TCP
+      targetPort: history-server
+---
+# ######################################
+# ## Spark Worker Service
+# ######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-ui
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: spark-worker
+  ports:
+    - name: worker-port
+      port: 8082
+      protocol: TCP
+      targetPort: worker-port
 ---
 ######################################
 ## Spark Secret
@@ -52,13 +82,13 @@ metadata:
 data:
   SPARK_MASTER_URL: spark://spark-svc:7077
   AWS_URL_ENDPOINT: http://minio-svc:9000
-  SPARK_PUBLIC_DNS: localhost
+  # SPARK_PUBLIC_DNS: localhost
 
   spark-defaults.conf: |
-    spark.master=spark://spark-master:7077
+    spark.master=spark://spark-svc:7077
 
     # Hadoop S3 / MinIO related settings
-    spark.hadoop.fs.s3a.endpoint=http://minio:9000
+    spark.hadoop.fs.s3a.endpoint=http://minio-svc:9000
     spark.hadoop.fs.s3a.path.style.access=true
     spark.hadoop.fs.s3a.connection.ssl.enabled=false
     spark.hadoop.fs.s3a.fast.upload=true
@@ -75,7 +105,6 @@ data:
     spark.history.fs.logDirectory=s3a://demo-logs/spark-events
     spark.eventLog.rolling.enabled=true
     spark.eventLog.rolling.maxFileSize=128m
-    spark.worker.ui.host=localhost
 
     # Configure Iceberg Catalogue
     spark.sql.defaultCatalog=demo
@@ -83,6 +112,7 @@ data:
     spark.sql.catalog.demo=org.apache.iceberg.spark.SparkCatalog
     spark.sql.catalog.demo.warehouse=s3a://demo-warehouse/
     spark.sql.catalog.demo.s3.endpoint=http://minio-svc:9000
+    spark.sql.catalog.demo.s3.path-style-access=true
     spark.sql.catalog.demo.default-namespace=retail_analytics
     spark.sql.catalog.demo.io-impl=org.apache.iceberg.aws.s3.S3FileIO
     spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
@@ -92,12 +122,17 @@ data:
     spark.sql.catalog.demo.s3.multipart.threshold=134217728
 
     # # Executors default settings
-    spark.driver.memory=1G
-    spark.driver.core=1
     spark.executor.cores=1
     spark.executor.memory=1G
     spark.executor.instances=1
     spark.cores.max=1
+
+    # driver settings
+    spark.driver.bindAddress=0.0.0.0
+    spark.driver.port=4400
+    spark.blockManager.port=34400
+    spark.driver.memory=1G
+    spark.driver.core=1
 ---
 ######################################
 ## Spark Master Deployment
@@ -108,6 +143,7 @@ metadata:
   name: spark-master-deployment
   namespace: airflow
 spec:
+  # serviceName: spark-master-svc
   replicas: 1
   selector:
     matchLabels:
@@ -237,5 +273,5 @@ spec:
             subPath: spark-defaults.conf
             readOnly: true
         ports:
-          - name: spark-worker
+          - name: worker-port
             containerPort: 8081

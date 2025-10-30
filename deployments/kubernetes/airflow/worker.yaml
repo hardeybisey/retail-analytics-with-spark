@@ -8,13 +8,20 @@ metadata:
   namespace: airflow
 spec:
   type: ClusterIP
+  clusterIP: None
   selector:
-    component: worker
+    component: airflow-worker
   ports:
-    - name: worker-port
-      protocol: TCP
-      port: 8793
-      targetPort: worker-port
+    # - name: worker-port
+    #   protocol: TCP
+    #   port: 8793
+    #   targetPort: worker-port
+    - name: driver-port
+      port: 4400
+      targetPort: driver-port
+    - name: blkmanager-port
+      port: 34400
+      targetPort: blkmanager-port
 ---
 ######################################
 ## Airflow Worker StatefulSet
@@ -119,24 +126,40 @@ spec:
             - name: worker-port
               containerPort: 8793
               protocol: TCP
+            - name: driver-port
+              containerPort: 4400
+              protocol: TCP
+            - name: blkmanager-port
+              containerPort: 34400
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: airflow-config
+            - configMapRef:
+                name: spark-config
             - secretRef:
                 name: airflow-secrets
-          env:
-            - name: DUMB_INIT_SETSID
-              value: "0"
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: minio-secret
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: minio-secret
-                  key: AWS_SECRET_ACCESS_KEY
+            - secretRef:
+                name: spark-secrets
+
+          # env:
+          #   - name: DUMB_INIT_SETSID
+          #     value: "0"
+          #   - name: AWS_ACCESS_KEY_ID
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: spark-secrets
+          #         key: AWS_ACCESS_KEY_ID
+          #   - name: AWS_SECRET_ACCESS_KEY
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: spark-secrets
+          #         key: AWS_SECRET_ACCESS_KEY
+          #   - name: AWS_REGION
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: spark-secrets
+          #         key: AWS_REGION
           livenessProbe:
             initialDelaySeconds: 10
             timeoutSeconds: 20

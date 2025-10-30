@@ -57,20 +57,20 @@ spec:
       protocol: TCP
       targetPort: worker-port
 ---
-######################################
-## Spark Secret
-######################################
-apiVersion: v1
-kind: Secret
-metadata:
-  name: spark-secrets
-  namespace: airflow
-type: Opaque
-data:
-  AWS_ACCESS_KEY_ID: bWluaW9hZG1pbg== # minioadmin
-  AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbg== # minioadmin
-  AWS_REGION: dXMtZWFzdC0x # us-east-1
----
+# ######################################
+# ## Spark Secret
+# ######################################
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: spark-secrets
+#   namespace: airflow
+# type: Opaque
+# data:
+#   AWS_ACCESS_KEY_ID: bWluaW9hZG1pbg== # minioadmin
+#   AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbg== # minioadmin
+#   AWS_REGION: dXMtZWFzdC0x # us-east-1
+# ---
 ######################################
 ## Spark ConfigMap
 ######################################
@@ -191,7 +191,7 @@ spec:
           - configMapRef:
               name: spark-config
           - secretRef:
-              name: spark-secrets
+              name: minio-secrets
         env:
           - name: SPARK_MODE
             value: "master"
@@ -259,7 +259,7 @@ spec:
           - configMapRef:
               name: spark-config
           - secretRef:
-              name: spark-secrets
+              name: minio-secrets
         env:
           - name: SPARK_MODE
             value: worker

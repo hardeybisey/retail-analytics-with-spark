@@ -55,12 +55,13 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: minio-secret
+  name: minio-secrets
   namespace: airflow
 type: Opaque
 data:
   AWS_ACCESS_KEY_ID: bWluaW9hZG1pbg== # minioadmin
   AWS_SECRET_ACCESS_KEY: bWluaW9hZG1pbg== # minioadmin
+  AWS_REGION: dXMtZWFzdC0x # us-east-1
   MINIO_ROOT_USER: bWluaW9hZG1pbg== # minioadmin
   MINIO_ROOT_PASSWORD: bWluaW9hZG1pbg== # minioadmin
 ---

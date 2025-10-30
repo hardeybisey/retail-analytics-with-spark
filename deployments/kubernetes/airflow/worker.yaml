@@ -137,10 +137,12 @@ spec:
                 name: airflow-config
             - configMapRef:
                 name: spark-config
+            - configMapRef:
+                name: minio-config
             - secretRef:
                 name: airflow-secrets
             - secretRef:
-                name: spark-secrets
+                name: minio-secrets
 
           # env:
           #   - name: DUMB_INIT_SETSID

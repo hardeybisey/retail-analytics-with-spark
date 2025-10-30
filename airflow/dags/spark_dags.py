@@ -1,11 +1,11 @@
 from datetime import datetime
 from airflow import DAG
+import os
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
-# SPARK_CONN_NAME = os.environ["SPARK_CONN_NAME"]
-SPARK_CONN_NAME = "spark_conn"
-DEPLOY_MODE = "client"
+SPARK_CONN_NAME = os.environ.get("SPARK_CONN_NAME", "spark_default")
+DEPLOY_MODE = os.environ.get("SPARK_DEPLOY_MODE", "client")
 
 
 with DAG(

@@ -19,6 +19,7 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     AIRFLOW__API__SECRET_KEY: 'myrandomkey'
+    AIRFLOW__API_AUTH__JWT_SECRET: 'myrandomkey'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
     AIRFLOW_CONFIG: '/opt/airflow/airflow.cfg'
   user: "${AIRFLOW_UID}:0"

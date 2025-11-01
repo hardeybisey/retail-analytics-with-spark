@@ -93,33 +93,33 @@ spec:
                 secretKeyRef:
                   name: airflow-secrets
                   key: MINIO_ROOT_PASSWORD
-          livenessProbe:
-            exec:
-              command:
-                - curl
-                - "--fail"
-                - http://localhost:9000/minio/health/ready
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
-          readinessProbe:
-            exec:
-              command:
-                - curl
-                - "--fail"
-                - http://localhost:9000/minio/health/ready
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
-          startupProbe:
-            exec:
-              command:
-                - curl
-                - "--fail"
-                - http://localhost:9000/minio/health/ready
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - "--fail"
+          #       - http://localhost:9000/minio/health/ready
+          #   initialDelaySeconds: 30
+          #   failureThreshold: 3
+          #   periodSeconds: 10
+          # readinessProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - "--fail"
+          #       - http://localhost:9000/minio/health/ready
+          #   initialDelaySeconds: 30
+          #   failureThreshold: 3
+          #   periodSeconds: 10
+          # startupProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - "--fail"
+          #       - http://localhost:9000/minio/health/ready
+          #   initialDelaySeconds: 30
+          #   failureThreshold: 3
+          #   periodSeconds: 10
 
   volumeClaimTemplates:
     - apiVersion: v1

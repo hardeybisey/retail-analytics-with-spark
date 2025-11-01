@@ -30,7 +30,7 @@ data:
   AWS_URL_ENDPOINT: http://minio-server-svc:9000
 
   spark-defaults.conf: |
-
+    
     # Hadoop S3 / MinIO related settings
     spark.hadoop.fs.s3a.endpoint=http://minio-server-svc:9000
     spark.hadoop.fs.s3a.path.style.access=true

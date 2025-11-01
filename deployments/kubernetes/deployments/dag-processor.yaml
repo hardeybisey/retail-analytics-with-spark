@@ -40,7 +40,8 @@ spec:
               mountPath: "/opt/airflow/airflow.cfg"
               subPath: config/airflow.cfg
               readOnly: true
-          args: ["airflow", "db", "check-migrations", "--migration-wait-timeout=60"]
+          args:
+            ["airflow", "db", "check-migrations", "--migration-wait-timeout=60"]
           envFrom:
             - configMapRef:
                 name: airflow-config

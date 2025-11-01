@@ -75,12 +75,12 @@ spec:
             - name: flower-ui
               containerPort: 5555
               protocol: TCP
-          livenessProbe:
-            exec:
-              command:
-                - curl
-                - "--fail"
-                - localhost:5555
-            initialDelaySeconds: 30
-            failureThreshold: 3
-            periodSeconds: 10
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - "--fail"
+          #       - localhost:5555
+          #   initialDelaySeconds: 30
+          #   failureThreshold: 3
+          #   periodSeconds: 10

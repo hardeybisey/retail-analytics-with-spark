@@ -1,0 +1,130 @@
+######################################
+## Spark Master Headless Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    component: spark-master
+  ports:
+    - name: master-port
+      port: 7077
+      protocol: TCP
+      targetPort: master-port
+---
+######################################
+## Spark Master Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-ui-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: spark-master
+  ports:
+    - name: master-ui
+      port: 8080
+      protocol: TCP
+      targetPort: master-ui
+    - name: history-ui
+      port: 18080
+      protocol: TCP
+      targetPort: history-ui
+---
+######################################
+## Spark Master Deployment
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master-deployment
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: spark-master
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: spark-master
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 0
+        runAsUser: 0
+        runAsGroup: 0
+      volumes:
+        - name: config
+          configMap:
+            name: airflow-config
+      containers:
+        - name: master
+          image: iadebisi/iceberg-spark
+          args: ["master"]
+          resources: {}
+            # limits:
+            #   memory: 128Mi
+            #   cpu: 500m
+            # requests:
+            #   memory: 128Mi
+            #   cpu: 500m
+          volumeMounts:
+            - name: config
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          env:
+            - name: SPARK_MODE
+              value: "master"
+            - name: SPARK_SSL_ENABLED
+              value: "no"
+            - name: SPARK_RPC_AUTHENTICATION_ENABLED
+              value: "no"
+            - name: SPARK_RPC_ENCRYPTION_ENABLED
+              value: "no"
+            - name: SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED
+              value: "no"
+            - name: SPARK_METRICS_ENABLED
+              value: "yes"
+            - name: SPARK_MASTER_HOST
+              value: "0.0.0.0"
+          ports:
+            - name: master-ui
+              containerPort: 8080
+            - name: history-ui
+              containerPort: 18080
+            - name: master-port
+              containerPort: 7077
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - "--fail"
+          #       - localhost:8080
+          #   initialDelaySeconds: 30
+          #   failureThreshold: 3
+          #   periodSeconds: 10
+          # readinessProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - "--fail"
+          #       - localhost:8080
+          #   initialDelaySeconds: 30
+          #   failureThreshold: 3
+          #   periodSeconds: 10

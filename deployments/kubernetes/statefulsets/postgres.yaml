@@ -1,0 +1,110 @@
+######################################
+## Postgres Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+  namespace: airflow
+spec:
+  clusterIP: None
+  type: ClusterIP
+  selector:
+    component: postgres
+  ports:
+    - name: postgres-port
+      protocol: TCP
+      port: 5432
+      targetPort: postgres-port
+---
+######################################
+## Postgres Statefulset
+######################################
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-deployment
+  namespace: airflow
+spec:
+  serviceName: postgres-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      component: postgres
+  template:
+    metadata:
+      labels:
+        component: postgres
+    spec:
+      serviceAccountName: airflow-sa
+      containers:
+        - name: postgres
+          image: postgres:13.22-alpine
+          imagePullPolicy: IfNotPresent
+          resources: {}
+            # requests:
+            #   cpu: "125m"
+            #   memory: "128Mi"
+            #   ephemeral-storage: "200Mi"
+            # limits:
+            #   cpu: "250m"
+            #   memory: "256Mi"
+            #   ephemeral-storage: "500Mi"
+          ports:
+            - name: postgres-port
+              containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: POSTGRES_DB
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "${POSTGRES_USER}" -d postgres
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - exec pg_isready -U "${POSTGRES_USER}" -d postgres
+
+  volumeClaimTemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: postgres-data
+      spec:
+        volumeName: postgres-pv
+        storageClassName: ""
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: "500Mi"

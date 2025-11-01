@@ -19,13 +19,14 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     AIRFLOW__API__SECRET_KEY: 'myrandomkey'
+    AIRFLOW__API_AUTH__JWT_SECRET: 'myrandomkey'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+    AIRFLOW_CONFIG: '/opt/airflow/airflow.cfg'
   user: "${AIRFLOW_UID}:0"
   volumes:
     - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags
     - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
-    - ${PROJECT_ROOT_DIR}/airflow/config:/opt/airflow/config
+    - ${PROJECT_ROOT_DIR}/airflow/config/airflow.cfg:/opt/airflow/config/airflow.cfg
   depends_on:
     &airflow-common-depends-on
     redis:
@@ -127,7 +128,7 @@ services:
     volumes:
       - ${PROJECT_ROOT_DIR}/airflow/logs:/opt/airflow/logs
       - ${PROJECT_ROOT_DIR}/airflow/dags:/opt/airflow/dags
-      - ${PROJECT_ROOT_DIR}/src/spark_jobs:/opt/spark/spark_jobs
+      - ${PROJECT_ROOT_DIR}/airflow/spark_jobs:/opt/spark/spark_jobs
       - ${PROJECT_ROOT_DIR}/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       shared-network:

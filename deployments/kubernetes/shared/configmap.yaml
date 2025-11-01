@@ -1,0 +1,79 @@
+######################################
+## Airflow ConfigMap
+######################################
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airflow-config
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: airflow-config
+data:
+  S3_LOGS_BUCKET: demo-logs
+  S3_INPUTS_BUCKET: demo-input
+  S3_WH_BUCKET: demo-warehouse
+  S3_STG_BUCKET: demo-staging
+  AIRFLOW_HOME: /opt/airflow
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://api-server-svc:8080/execution/'
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+  SPARK_MASTER_URL: spark://spark-master-svc:7077
+  SPARK_CONN_NAME: spark_conn
+  SPARK_CONN_HOST: spark://spark-master-svc
+  SPARK_DEPLOY_MODE: client
+  SPARK_CONN_PORT: "7077"
+  AWS_URL_ENDPOINT: http://minio-server-svc:9000
+
+  spark-defaults.conf: |
+    
+    # Hadoop S3 / MinIO related settings
+    spark.hadoop.fs.s3a.endpoint=http://minio-server-svc:9000
+    spark.hadoop.fs.s3a.path.style.access=true
+    spark.hadoop.fs.s3a.connection.ssl.enabled=false
+    spark.hadoop.fs.s3a.fast.upload=true
+    spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.hadoop.fs.s3a.checksum.type=CRC32C
+    spark.hadoop.fs.s3a.etag.checksum.enabled=true
+    spark.hadoop.fs.s3a.multipart.uploads.enabled=true
+    spark.hadoop.fs.s3a.multipart.size=134217728
+
+
+    # Event log and history server settings
+    spark.eventLog.enabled=true
+    spark.eventLog.dir=s3a://demo-logs/spark-events
+    spark.history.fs.logDirectory=s3a://demo-logs/spark-events
+    spark.eventLog.rolling.enabled=true
+    spark.eventLog.rolling.maxFileSize=128m
+
+    # Configure Iceberg Catalogue
+    spark.sql.defaultCatalog=demo
+    spark.sql.catalog.demo.type=hadoop
+    spark.sql.catalog.demo=org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.demo.warehouse=s3a://demo-warehouse/
+    spark.sql.catalog.demo.s3.endpoint=http://minio-server-svc:9000
+    spark.sql.catalog.demo.s3.path-style-access=true
+    spark.sql.catalog.demo.default-namespace=retail_analytics
+    spark.sql.catalog.demo.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+    spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.demo.s3.checksum-enabled=true
+    spark.sql.catalog.demo.s3.multipart-upload-enabled=true
+    spark.sql.catalog.demo.s3.multipart.size=134217728
+    spark.sql.catalog.demo.s3.multipart.threshold=134217728
+
+    # # Executors default settings
+    spark.executor.cores=1
+    spark.executor.memory=1G
+    spark.executor.instances=1
+    spark.cores.max=1
+
+    # driver settings
+    spark.driver.bindAddress=0.0.0.0
+    spark.driver.port=4400
+    spark.blockManager.port=34400
+    spark.driver.memory=1G
+    spark.driver.core=1

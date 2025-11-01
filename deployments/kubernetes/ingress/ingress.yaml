@@ -1,0 +1,67 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: airflow-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: airflow.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-server-svc
+            port:
+              name: api-server-ui
+  - host: flower.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: flower-svc
+            port:
+              name: flower-ui
+  - host: spark.master.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: spark-master-ui-svc
+            port:
+              name: master-ui
+  - host: spark.history-server.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: spark-master-ui-svc
+            port:
+              name: history-ui
+  - host: spark.worker.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: spark-worker-svc
+            port:
+              name: worker-ui
+  - host: minio.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: minio-console-svc
+            port:
+              name: minio-console

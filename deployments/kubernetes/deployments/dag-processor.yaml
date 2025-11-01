@@ -1,0 +1,95 @@
+######################################
+## Dag Processor Deployment
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dag-processor
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: dag-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: airflow
+      component: dag-processor
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: dag-processor
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      securityContext:
+        runAsUser: 50000
+        fsGroup: 0
+      volumes:
+        - name: airflow-data
+          persistentVolumeClaim:
+            claimName: airflow-pvc
+      initContainers:
+        - name: wait-for-airflow-migrations
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          volumeMounts:
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+          args:
+            ["airflow", "db", "check-migrations", "--migration-wait-timeout=60"]
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+      containers:
+        - name: dag-processor
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          command: []
+          args:
+            - bash
+            - -c
+            - exec airflow dag-processor
+          resources: {}
+            # requests:
+            #   cpu: "200m"
+            #   memory: "500Mi"
+            # limits:
+            #   cpu: "400m"
+            #   memory: "1Gi"
+          volumeMounts:
+            - name: airflow-data
+              mountPath: /opt/airflow/logs
+              subPath: logs
+              readOnly: false
+            - name: airflow-data
+              mountPath: /opt/airflow/dags
+              subPath: dags
+              readOnly: true
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          livenessProbe:
+            initialDelaySeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 5
+            periodSeconds: 60
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  exec /entrypoint \
+                  airflow jobs check --local --job-type DagProcessorJob

@@ -1,0 +1,148 @@
+######################################
+## Airflow Worker Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: airflow-worker-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    component: airflow-worker
+  ports:
+    - name: driver-port
+      port: 4400
+      targetPort: driver-port
+    - name: blkmanager-port
+      port: 34400
+      targetPort: blkmanager-port
+---
+######################################
+## Airflow Worker StatefulSet
+######################################
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: airflow-worker-deployment
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: airflow-worker
+spec:
+  serviceName: airflow-worker-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: airflow
+      component: airflow-worker
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: airflow-worker
+    spec:
+      serviceAccountName: airflow-sa
+      securityContext:
+        runAsUser: 50000
+        fsGroup: 0
+      volumes:
+        - name: airflow-data
+          persistentVolumeClaim:
+            claimName: airflow-pvc
+        - name: config
+          configMap:
+            name: airflow-config
+      initContainers:
+        - name: wait-for-airflow-migrations
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          volumeMounts:
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+          args:
+            - airflow
+            - db
+            - check-migrations
+            - --migration-wait-timeout=60
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+      containers:
+        - name: worker
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          resources: {}
+            # requests:
+            #   cpu: "400m"
+            #   memory: "1Gi"
+            # limits:
+            #   cpu: "500m"
+            #   memory: "2Gi"
+          volumeMounts:
+            - name: airflow-data
+              mountPath: /opt/airflow/logs
+              subPath: logs
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+            - name: airflow-data
+              mountPath: /opt/airflow/dags
+              subPath: dags
+              readOnly: true
+            - name: airflow-data
+              mountPath: /opt/spark/spark_jobs
+              subPath: spark_jobs
+              readOnly: true
+            - name: config
+              mountPath: /opt/spark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+              readOnly: true
+          command: []
+          args:
+            - bash
+            - -c
+            - |-
+              exec airflow celery worker
+          ports:
+            # - name: worker-port
+            #   containerPort: 8793
+            #   protocol: TCP
+            - name: driver-port
+              containerPort: 4400
+              protocol: TCP
+            - name: blkmanager-port
+              containerPort: 34400
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          livenessProbe:
+            initialDelaySeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 5
+            periodSeconds: 60
+            exec:
+              command:
+                - sh
+                - -c
+                - CONNECTION_CHECK_MAX_COUNT=0 exec /entrypoint python -m celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d celery@$(hostname)
+          readinessProbe:
+            initialDelaySeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 5
+            periodSeconds: 60
+            exec:
+              command:
+                - sh
+                - -c
+                - CONNECTION_CHECK_MAX_COUNT=0 exec /entrypoint python -m celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d celery@$(hostname)

@@ -170,8 +170,8 @@ def create_customer_dim_table(spark: SparkSession) -> None:
     spark.sql("""
         MERGE INTO dim_customer AS target
         USING tmp_dim_customer_view AS src
-            ON target.customer_sk = src.customer_sk AND target.is_current = true
-        WHEN MATCHED THEN
+            ON target.customer_sk = src.customer_sk
+        WHEN MATCHED AND target.is_current = true THEN
             UPDATE SET
                 target.effective_to = src.effective_to,
                 target.is_current = src.is_current

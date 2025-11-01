@@ -1,0 +1,17 @@
+######################################
+## Airflow PersistentVolumeClaim
+######################################
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-pvc
+  namespace: airflow
+  labels:
+    tier: airflow
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi

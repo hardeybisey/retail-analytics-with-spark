@@ -1,7 +1,7 @@
 ##############################################
 # STAGE 1 — Spark Base Build
 ##############################################
-FROM eclipse-temurin:17-jre-alpine AS base
+FROM alpine/curl:8.14.1 AS base
 
 ARG SPARK_VERSION=3.5.6
 ARG SPARK_MAJOR_VERSION=3.5
@@ -14,8 +14,7 @@ ARG SCALA_VERSION=2.12
 ENV SPARK_HOME=/opt/spark
 ENV PATH="/opt/spark/bin:/opt/spark/sbin:$PATH"
 
-RUN apk add --no-cache bash curl tar  && \
-    mkdir -p ${SPARK_HOME}/jars && \
+RUN mkdir -p ${SPARK_HOME}/jars && \
     echo "Downloading Spark..." && \
     curl -fsSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" | tar -xz -C /opt/spark --strip-components=1 && \
     echo "Downloading Iceberg and AWS connectors..." && \
@@ -29,7 +28,10 @@ RUN apk add --no-cache bash curl tar  && \
 ##############################################
 FROM python:3.11-bookworm AS spark
 
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ARG TARGETARCH
+RUN echo "Building for $TARGETARCH"
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-${TARGETARCH}
 ENV SPARK_HOME=/opt/spark
 ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
 
@@ -55,9 +57,13 @@ ENTRYPOINT ["/entrypoint.sh"]
 ##############################################
 FROM apache/airflow:3.1.0-python3.11 AS airflow
 
+ARG TARGETARCH
+
+RUN echo "Building for $TARGETARCH"
+
 USER root
 
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-${TARGETARCH}
 ENV SPARK_HOME=/opt/spark
 ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
 

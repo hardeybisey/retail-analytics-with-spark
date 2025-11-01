@@ -1,0 +1,61 @@
+######################################
+## Airflow Create User Job
+######################################
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: airflow-create-user
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: create-user-job
+    release: airflow
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: create-user-job
+    spec:
+      securityContext:
+        runAsUser: 50000
+        fsGroup: 0
+      restartPolicy: OnFailure
+      serviceAccountName: airflow-sa
+      containers:
+        - name: create-user
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          args:
+            - bash
+            - -c
+            - |
+              exec airflow users create \
+                -f "$AIRFLOW_USER" \
+                -l "$AIRFLOW_USER" \
+                -e "$AIRFLOW_USER@example.com" \
+                -u "$AIRFLOW_USER" \
+                -p "$AIRFLOW_PASS" \
+                -r Admin
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          resources: {}
+            # requests:
+            #   cpu: "100m"
+            #   memory: "128Mi"
+            # limits:
+            #   cpu: "200m"
+            #   memory: "256Mi"
+          volumeMounts:
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+      volumes:
+        - name: airflow-data
+          persistentVolumeClaim:
+            claimName: airflow-pvc

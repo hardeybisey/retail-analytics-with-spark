@@ -5,7 +5,7 @@ from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 SPARK_CONN_NAME = os.environ["SPARK_CONN_NAME"]
-DEPLOY_MODE = "client"
+DEPLOY_MODE = os.environ["SPARK_DEPLOY_MODE"]
 
 
 with DAG(

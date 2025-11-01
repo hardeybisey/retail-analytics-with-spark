@@ -95,35 +95,3 @@ docker compose -f deployments/docker/docker-compose.spark.yml down -v
 # Stop and remove Airflow services
 docker compose -f deployments/docker/docker-compose.airflow.yml down -v
 ```
-
----
-<!--
-## **5. Notes**
-
-* Both Airflow and Spark services rely on shared environment variables defined in `.env`.
-* The first startup may take longer as Docker pulls required images.
-* You can monitor logs with:
-
-  ```bash
-  docker compose -f deployments/docker/docker-compose.airflow.yml logs -f
-  ```
-* If you modify the `.env` file, restart the containers for changes to take effect.
-
-
---master $SPARK_MASTER_URL
-
-spark-submit --executor-memory 1G \
-     --executor-cores 1 \
-     --total-executor-cores 1  \
-     /opt/airflow/scripts/test.py
-
-spark-submit --executor-memory 1G \
-     --executor-cores 1 \
-     --total-executor-cores 1  \
-     /opt/airflow/scripts/migrations_v1.py
-
-
-docker buildx build -t iadebisi/airflow-spark --target airflow --push .
-docker buildx build -t iadebisi/iceberg-spark --target spark --push .
-
---- -->

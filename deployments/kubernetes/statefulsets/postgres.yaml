@@ -18,41 +18,6 @@ spec:
       targetPort: postgres-port
 ---
 ######################################
-## Postgres Persistent Volume
-######################################
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: postgres-pv
-  namespace: airflow
-spec:
-  capacity:
-    storage: 500Mi
-  storageClassName: ""
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Delete
-  hostPath:
-    path: /home/postgres
-    type: DirectoryOrCreate
----
-######################################
-## Postgres Secret
-######################################
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-secrets
-  namespace: airflow
-  labels:
-    tier: postgres
-    component: postgres-secrets
-data:
-  POSTGRES_USER: YWlyZmxvdw== # airflow
-  POSTGRES_PASSWORD: YWlyZmxvdw== # airflow
-  POSTGRES_DB: YWlyZmxvdw== # airflow
----
-######################################
 ## Postgres Statefulset
 ######################################
 apiVersion: apps/v1
@@ -72,7 +37,6 @@ spec:
         component: postgres
     spec:
       serviceAccountName: airflow-sa
-      automountServiceAccountToken: false
       containers:
         - name: postgres
           image: postgres:13.22-alpine
@@ -89,6 +53,25 @@ spec:
           ports:
             - name: postgres-port
               containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: POSTGRES_DB
           livenessProbe:
             failureThreshold: 3
             initialDelaySeconds: 30
@@ -111,14 +94,6 @@ spec:
                 - /bin/sh
                 - -c
                 - exec pg_isready -U "${POSTGRES_USER}" -d postgres
-                # - exec pg_isready -U "${POSTGRES_USER}" -h 127.0.0.1 -p 5432
-          volumeMounts:
-            - name: postgres-data
-              # mountPath: /bitnami/postgresql
-              mountPath: /var/lib/postgresql/data
-          envFrom:
-            - secretRef:
-                name: postgres-secrets
 
   volumeClaimTemplates:
     - apiVersion: v1

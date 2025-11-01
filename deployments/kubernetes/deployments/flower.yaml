@@ -1,0 +1,86 @@
+######################################
+## Celery Flower Service
+######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: flower-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: flower
+  ports:
+    - name: flower-ui
+      protocol: TCP
+      port: 5555
+      targetPort: flower-ui
+---
+######################################
+## Celery Flower Deployment
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flower
+  labels:
+    tier: airflow
+    component: flower
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      tier: airflow
+      component: flower
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: flower
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      volumes:
+        - name: airflow-data
+          persistentVolumeClaim:
+            claimName: airflow-pvc
+      containers:
+        - name: flower
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          command: []
+          args:
+            - "bash"
+            - "-c"
+            - |-
+              exec \
+              airflow celery flower
+          resources: {}
+            # requests:
+            #   cpu: "200m"
+            #   memory: "500Mi"
+            # limits:
+            #   cpu: "400m"
+            #   memory: "1Gi"
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          volumeMounts:
+            - name: airflow-data
+              mountPath: /opt/airflow/airflow.cfg
+              subPath: config/airflow.cfg
+          ports:
+            - name: flower-ui
+              containerPort: 5555
+              protocol: TCP
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - "--fail"
+                - localhost:5555
+            initialDelaySeconds: 30
+            failureThreshold: 3
+            periodSeconds: 10

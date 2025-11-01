@@ -18,38 +18,6 @@ spec:
       targetPort: redis-port
 ---
 ######################################
-## Redis Persistent Volume
-######################################
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: redis-pv
-spec:
-  capacity:
-    storage: 500Mi
-  storageClassName: ""
-  accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Delete
-  hostPath:
-    path: /home/redis
-    type: DirectoryOrCreate
----
-######################################
-## Redis Secret
-######################################
-apiVersion: v1
-kind: Secret
-metadata:
-  name: redis-secrets
-  namespace: airflow
-  labels:
-    tier: redis
-    component: redis-secrets
-data:
-  REDIS_PASSWORD: YWlyZmxvdw== # airflow
----
-######################################
 ## Redis Statefulset
 ######################################
 apiVersion: apps/v1
@@ -69,7 +37,6 @@ spec:
         component: redis
     spec:
       serviceAccountName: airflow-sa
-      automountServiceAccountToken: false
       securityContext:
         runAsUser: 0
       containers:
@@ -89,6 +56,15 @@ spec:
             - name: redis-port
               containerPort: 6379
           command: ["/bin/sh", "-c", "redis-server --requirepass ${REDIS_PASSWORD}"]
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-secrets
+                  key: REDIS_PASSWORD
           livenessProbe:
             failureThreshold: 3
             initialDelaySeconds: 30
@@ -97,13 +73,6 @@ spec:
             timeoutSeconds: 5
             exec:
               command: ["redis-cli", "ping"]
-          volumeMounts:
-            - name: redis-data
-              mountPath: /data
-          envFrom:
-            - secretRef:
-                name: redis-secrets
-
   volumeClaimTemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim

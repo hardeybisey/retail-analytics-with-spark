@@ -1,0 +1,50 @@
+######################################
+## Airflow Run Migration Job
+######################################
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: airflow-run-migrations
+  namespace: airflow
+  labels:
+    tier: airflow
+    component: run-migrations-job
+    release: airflow
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: run-migrations-job
+    spec:
+      securityContext:
+        runAsUser: 50000
+        fsGroup: 0
+      restartPolicy: OnFailure
+      serviceAccountName: airflow-sa
+      containers:
+        - name: run-migrations
+          image: iadebisi/airflow-spark
+          imagePullPolicy: IfNotPresent
+          args:
+            - bash
+            - -c
+            - |-
+              exec \
+              airflow db migrate
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+            - secretRef:
+                name: airflow-secrets
+          resources: {}
+          volumeMounts:
+            - name: airflow-data
+              mountPath: "/opt/airflow/airflow.cfg"
+              subPath: config/airflow.cfg
+              readOnly: true
+      volumes:
+        - name: airflow-data
+          persistentVolumeClaim:
+            claimName: airflow-pvc

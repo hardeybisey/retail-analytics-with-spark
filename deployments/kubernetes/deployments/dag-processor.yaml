@@ -34,13 +34,7 @@ spec:
         - name: wait-for-airflow-migrations
           image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
-          resources:
-            requests:
-              cpu: 200m
-              memory: 128Mi
-            limits:
-              cpu: 300m
-              memory: 256Mi
+          resources: {}
           volumeMounts:
             - name: airflow-data
               mountPath: "/opt/airflow/airflow.cfg"
@@ -87,7 +81,7 @@ spec:
             - secretRef:
                 name: airflow-secrets
           livenessProbe:
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             timeoutSeconds: 20
             failureThreshold: 5
             periodSeconds: 60
@@ -96,5 +90,5 @@ spec:
                 - sh
                 - -c
                 - |
-                  CONNECTION_CHECK_MAX_COUNT=0 AIRFLOW__LOGGING__LOGGING_LEVEL=ERROR exec /entrypoint \
+                  exec /entrypoint \
                   airflow jobs check --local --job-type DagProcessorJob

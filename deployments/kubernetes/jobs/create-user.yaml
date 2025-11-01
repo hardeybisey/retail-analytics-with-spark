@@ -1,63 +1,4 @@
 ######################################
-## Airflow Run Migration Job
-######################################
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: airflow-run-migrations
-  namespace: airflow
-  labels:
-    tier: airflow
-    component: run-migrations-job
-    release: airflow
-spec:
-  ttlSecondsAfterFinished: 300
-  template:
-    metadata:
-      labels:
-        tier: airflow
-        component: run-migrations-job
-    spec:
-      securityContext:
-        runAsUser: 50000
-        fsGroup: 0
-      restartPolicy: OnFailure
-      serviceAccountName: airflow-sa
-      automountServiceAccountToken: false
-      containers:
-        - name: run-migrations
-          image: iadebisi/airflow-spark
-          imagePullPolicy: IfNotPresent
-          # command: []
-          args:
-            - bash
-            - -c
-            - |-
-              exec \
-              airflow db migrate
-          envFrom:
-            - configMapRef:
-                name: airflow-config
-            - secretRef:
-                name: airflow-secrets
-          resources: {}
-            # requests:
-            #   cpu: "100m"
-            #   memory: "128Mi"
-            # limits:
-            #   cpu: "200m"
-            #   memory: "256Mi"
-          volumeMounts:
-            - name: airflow-data
-              mountPath: "/opt/airflow/airflow.cfg"
-              subPath: config/airflow.cfg
-              readOnly: true
-      volumes:
-        - name: airflow-data
-          persistentVolumeClaim:
-            claimName: airflow-pvc
----
-######################################
 ## Airflow Create User Job
 ######################################
 apiVersion: batch/v1
@@ -82,12 +23,10 @@ spec:
         fsGroup: 0
       restartPolicy: OnFailure
       serviceAccountName: airflow-sa
-      automountServiceAccountToken: false
       containers:
         - name: create-user
           image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
-          # command: []
           args:
             - bash
             - -c

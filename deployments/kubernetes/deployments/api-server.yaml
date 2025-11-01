@@ -11,10 +11,10 @@ spec:
   selector:
     component: api-server
   ports:
-    - name: api-server-port
+    - name: api-server-ui
       protocol: TCP
       port: 8080
-      targetPort: 8080
+      targetPort: api-server-ui
 ---
 ######################################
 ## API Server Deployment
@@ -99,7 +99,7 @@ spec:
             - secretRef:
                 name: airflow-secrets
           ports:
-            - name: api-server-port
+            - name: api-server-ui
               containerPort: 8080
               protocol: TCP
           livenessProbe:

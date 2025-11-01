@@ -1,0 +1,75 @@
+######################################
+## Airflow PersistentVolume
+######################################
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: airflow-pv
+  namespace: airflow
+spec:
+  capacity:
+    storage: 5Gi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/airflow
+    type: Directory
+---
+######################################
+## Minio PersistentVolume
+######################################
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name:  minio-pv
+  namespace: airflow
+spec:
+  capacity:
+    storage: 1Gi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/minio
+    type: DirectoryOrCreate
+---
+######################################
+## Postgres Persistent Volume
+######################################
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+  namespace: airflow
+spec:
+  capacity:
+    storage: 1Gi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/postgres
+    type: DirectoryOrCreate
+---
+######################################
+## Redis Persistent Volume
+######################################
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: redis-pv
+spec:
+  capacity:
+    storage: 1Gi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  hostPath:
+    path: /home/redis
+    type: DirectoryOrCreate

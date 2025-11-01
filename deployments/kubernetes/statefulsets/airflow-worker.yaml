@@ -12,10 +12,6 @@ spec:
   selector:
     component: airflow-worker
   ports:
-    # - name: worker-port
-    #   protocol: TCP
-    #   port: 8793
-    #   targetPort: worker-port
     - name: driver-port
       port: 4400
       targetPort: driver-port
@@ -57,18 +53,12 @@ spec:
             claimName: airflow-pvc
         - name: config
           configMap:
-            name: spark-config
+            name: airflow-config
       initContainers:
         - name: wait-for-airflow-migrations
           image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
           resources: {}
-            # requests:
-            #   cpu: 200m
-            #   memory: 128Mi
-            # limits:
-            #   cpu: 400m
-            #   memory: 256Mi
           volumeMounts:
             - name: airflow-data
               mountPath: "/opt/airflow/airflow.cfg"
@@ -86,7 +76,6 @@ spec:
                 name: airflow-secrets
       containers:
         - name: worker
-          # image: apache/airflow:3.1.0
           image: iadebisi/airflow-spark
           imagePullPolicy: IfNotPresent
           resources: {}
@@ -123,9 +112,9 @@ spec:
             - |-
               exec airflow celery worker
           ports:
-            - name: worker-port
-              containerPort: 8793
-              protocol: TCP
+            # - name: worker-port
+            #   containerPort: 8793
+            #   protocol: TCP
             - name: driver-port
               containerPort: 4400
               protocol: TCP
@@ -135,35 +124,10 @@ spec:
           envFrom:
             - configMapRef:
                 name: airflow-config
-            - configMapRef:
-                name: spark-config
-            - configMapRef:
-                name: minio-config
             - secretRef:
                 name: airflow-secrets
-            - secretRef:
-                name: minio-secrets
-
-          # env:
-          #   - name: DUMB_INIT_SETSID
-          #     value: "0"
-          #   - name: AWS_ACCESS_KEY_ID
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: spark-secrets
-          #         key: AWS_ACCESS_KEY_ID
-          #   - name: AWS_SECRET_ACCESS_KEY
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: spark-secrets
-          #         key: AWS_SECRET_ACCESS_KEY
-          #   - name: AWS_REGION
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: spark-secrets
-          #         key: AWS_REGION
           livenessProbe:
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             timeoutSeconds: 20
             failureThreshold: 5
             periodSeconds: 60
@@ -172,14 +136,26 @@ spec:
                 - sh
                 - -c
                 - CONNECTION_CHECK_MAX_COUNT=0 exec /entrypoint python -m celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d celery@$(hostname)
-
+          readinessProbe:
+            initialDelaySeconds: 30
+            timeoutSeconds: 20
+            failureThreshold: 5
+            periodSeconds: 60
+            exec:
+              command:
+                - sh
+                - -c
+                - CONNECTION_CHECK_MAX_COUNT=0 exec /entrypoint python -m celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d celery@$(hostname)
   # volumeClaimTemplates:
   #   - apiVersion: v1
   #     kind: PersistentVolumeClaim
   #     metadata:
   #       name: logs
   #     spec:
-  #       accessModes: ["ReadWriteOnce"]
+  #       volumeName: airflow-worker-pv
+  #       storageClassName: ""
+  #       accessModes:
+  #         - ReadWriteOnce
   #       resources:
   #         requests:
-  #           storage: 100Gi
+  #           storage: 500Mi

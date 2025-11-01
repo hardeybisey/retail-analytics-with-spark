@@ -1,0 +1,96 @@
+# ######################################
+# ## Spark Worker Service
+# ######################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-worker-svc
+  namespace: airflow
+spec:
+  type: ClusterIP
+  selector:
+    component: spark-worker
+  ports:
+    - name: worker-ui
+      port: 8081
+      protocol: TCP
+      targetPort: worker-ui
+---
+######################################
+## Spark Worker Deployment
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker-deployment
+  namespace: airflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: spark-worker
+  template:
+    metadata:
+      labels:
+        tier: airflow
+        component: spark-worker
+    spec:
+      serviceAccountName: airflow-sa
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 0
+        runAsGroup: 0
+        runAsUser: 0
+      volumes:
+        - name: config
+          configMap:
+            name: airflow-config
+      containers:
+      - name: spark-worker
+        image: iadebisi/iceberg-spark
+        resources: {}
+          # limits:
+          #   memory: 128Mi
+          #   cpu: 500m
+          # requests:
+          #   memory: 128Mi
+          #   cpu: 500m
+        args: ["worker"]
+        envFrom:
+          - configMapRef:
+              name: airflow-config
+          - secretRef:
+              name: airflow-secrets
+        env:
+          - name: SPARK_MODE
+            value: worker
+          - name: SPARK_WORKER_CORES
+            value: "4"
+          - name: SPARK_WORKER_MEMORY
+            value: 4G
+        volumeMounts:
+          - name: config
+            mountPath: /opt/spark/conf/spark-defaults.conf
+            subPath: spark-defaults.conf
+            readOnly: true
+        ports:
+          - name: worker-ui
+            containerPort: 8081
+        livenessProbe:
+          exec:
+            command:
+              - curl
+              - "--fail"
+              - localhost:8081
+          initialDelaySeconds: 30
+          failureThreshold: 3
+          periodSeconds: 10
+        startupProbe:
+          exec:
+            command:
+              - curl
+              - "--fail"
+              - localhost:8081
+          initialDelaySeconds: 30
+          failureThreshold: 3
+          periodSeconds: 10

@@ -166,8 +166,8 @@ def create_seller_dim_table(spark) -> None:
     spark.sql("""
         MERGE INTO dim_seller AS target
         USING tmp_dim_seller_view AS src
-            ON target.seller_sk = src.seller_sk AND target.is_current = true
-        WHEN MATCHED THEN
+            ON target.seller_sk = src.seller_sk
+        WHEN MATCHED AND target.is_current = true THEN
             UPDATE SET
                 target.effective_to = src.effective_to,
                 target.is_current = src.is_current

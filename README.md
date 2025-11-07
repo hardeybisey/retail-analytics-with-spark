@@ -22,11 +22,11 @@ The project supports three deployment modes for flexibility across development, 
 
 | Layer            | Local (Docker)           | Local (Kubernetes)     | Cloud                         |
 | ---------------- | ------------------------ | ---------------------- | ----------------------------- |
-| Object Storage   | MinIO                    | MinIO                  | Amazon S3                     |
-| Orchestration    | Airflow (Docker Compose) | Airflow (Helm on Kind) | MWAA (Managed Airflow)        |
-| Data Processing  | Spark (Standalone)       | Spark (on K8s)         | AWS Glue (Spark runtime)      |
+| Object Storage   | MinIO                    | MinIO (Minikube)       | Amazon S3                     |
+| Orchestration    | Airflow (Docker Compose) | Airflow (Minikube)     | MWAA (Managed Airflow)        |
+| Data Processing  | Spark (Standalone)       | Spark (Minikube)       | AWS Glue (Spark runtime)      |
 | Data Lake Format | Iceberg (MinIO-backed)   | Iceberg (MinIO-backed) | Iceberg (S3-backed)           |
-| Metadata DB      | PostgreSQL (Docker)      | PostgreSQL (Pod)       | RDS                           |
+| Metadata DB      | PostgreSQL (Docker)      | PostgreSQL (Minikube)  | RDS                           |
 | Monitoring       | Local Logs               | Prometheus / Grafana   | Cloud-native Observability    |
 
 ---
@@ -126,3 +126,4 @@ Each deployment mode has its own setup and configuration guide:
 * [Apache Iceberg Docs](https://iceberg.apache.org/docs/latest/)
 * [MinIO Docs](https://www.min.io/)
 * [Docker Docs](https://docs.docker.com/engine/install/)
+* [Minukube](https://minikube.sigs.k8s.io/docs/)

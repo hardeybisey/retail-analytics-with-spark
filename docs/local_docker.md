@@ -84,7 +84,13 @@ You should see entries for the Spark master, Spark worker(s), Airflow webserver,
 
 ---
 
-## **4. Stopping and Cleaning Up**
+## **4. Data Exploration Via Jupyter Notebook**
+
+There is a Jupyter notebook server started as part of the spark serviced. You can explore the tables created and managed by icerberg through the notebook in `retail-analytics-with-spark/notebooks` folder. The jupyter server url connection is `http://localhost:28081`
+
+---
+
+## **5. Cleaning Up**
 
 To gracefully stop and remove the running containers (including their volumes):
 

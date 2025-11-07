@@ -79,22 +79,26 @@ This architecture separates **orchestration**, **processing**, and **storage** c
 │   ├── config
 │   ├── dags
 │   │   └──
-│   └── logs
+│   ├── logs
+│   │   ├──
+│   └── spark_jobs
+│       └──
 ├── conf
 ├── deployments
 │   ├── aws
 │   │   └── terraform
 │   ├── docker
 │   └── kubernetes
+│       ├── deployments
+│       ├── ingress
+│       ├── jobs
+│       ├── shared
+│       └── statefulsets
 ├── docs
 ├── images
 ├── jars
 ├── notebooks
-├── raw_input
-└── src
-    ├── spark_jobs
-    │   └──
-    └── test
+└── raw_input
 ```
 --
 

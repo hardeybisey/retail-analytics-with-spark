@@ -3,11 +3,11 @@
 ##############################################
 FROM alpine/curl:8.14.1 AS base
 
-ARG SPARK_VERSION=4.1.1
+ARG SPARK_VERSION=4.0.2
 ARG SPARK_MAJOR_VERSION=4.0
 ARG HADOOP_VERSION=3
-ARG HADOOP_AWS_VERSION=3.5.0
-ARG AWS_SDK_VERSION=1.12.99
+ARG HADOOP_AWS_VERSION=3.4.1
+ARG AWS_SDK_VERSION=2.42.9
 ARG ICEBERG_VERSION=1.10.1
 ARG SCALA_VERSION=2.13
 ARG KAFKA_VERSION=0-10
@@ -22,7 +22,7 @@ RUN mkdir -p ${SPARK_HOME}/jars && \
     curl -fsSL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop${HADOOP_VERSION}.tgz" | tar -xz -C /opt/spark --strip-components=1 && \
     echo "Downloading Iceberg and AWS connectors..." && \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/hadoop/hadoop-aws/${HADOOP_AWS_VERSION}/hadoop-aws-${HADOOP_AWS_VERSION}.jar" -o ${SPARK_HOME}/jars/hadoop-aws-${HADOOP_AWS_VERSION}.jar && \
-    curl -fsSL "https://repo1.maven.org/maven2/com/amazonaws/aws-java-sdk-bundle/${AWS_SDK_VERSION}/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar" -o ${SPARK_HOME}/jars/aws-java-sdk-bundle-${AWS_SDK_VERSION}.jar && \
+    curl -fsSL "https://repo1.maven.org/maven2/software/amazon/awssdk/bundle/${AWS_SDK_VERSION}/bundle-${AWS_SDK_VERSION}.jar" -o ${SPARK_HOME}/jars/bundle-${AWS_SDK_VERSION}.jar && \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}/${ICEBERG_VERSION}/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar" -o ${SPARK_HOME}/jars/iceberg-spark-runtime-${SPARK_MAJOR_VERSION}_${SCALA_VERSION}-${ICEBERG_VERSION}.jar && \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/${ICEBERG_VERSION}/iceberg-aws-bundle-${ICEBERG_VERSION}.jar" -o ${SPARK_HOME}/jars/iceberg-aws-bundle-${ICEBERG_VERSION}.jar && \
     echo "Downloading Kafka connectors..." && \
@@ -54,7 +54,7 @@ RUN apt-get update && \
 
 COPY --from=base /opt/spark /opt/spark
 
-RUN pip install --no-cache-dir pyspark==4.1.1 jupyter==1.1.0
+RUN pip install --no-cache-dir pyspark==4.0.2 jupyter==1.1.0
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -88,4 +88,4 @@ RUN chown -R airflow ${SPARK_HOME}
 
 USER airflow
 
-RUN pip install --no-cache-dir apache-airflow-providers-apache-spark==6.0.0 pyspark==4.1.1
+RUN pip install --no-cache-dir apache-airflow-providers-apache-spark==6.0.0 pyspark==4.0.2

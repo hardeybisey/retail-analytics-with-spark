@@ -13,6 +13,7 @@ ARG SCALA_VERSION=2.13
 ARG KAFKA_VERSION=0-10
 ARG KAFKA_CLIENTS_VERSION=3.9.1
 ARG COMMONS_POOL2_VERSION=2.13.1
+ARG S3_TABLES_VERSION=0.1.8
 
 ENV SPARK_HOME=/opt/spark
 ENV PATH="/opt/spark/bin:/opt/spark/sbin:$PATH"
@@ -29,8 +30,8 @@ RUN mkdir -p ${SPARK_HOME}/jars && \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-${KAFKA_VERSION}_${SCALA_VERSION}/${SPARK_VERSION}/spark-sql-kafka-${KAFKA_VERSION}_${SCALA_VERSION}-${SPARK_VERSION}.jar" -o ${SPARK_HOME}/jars/spark-sql-kafka-${KAFKA_VERSION}_${SCALA_VERSION}-${SPARK_VERSION}.jar && \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-${KAFKA_VERSION}_${SCALA_VERSION}/${SPARK_VERSION}/spark-token-provider-kafka-${KAFKA_VERSION}_${SCALA_VERSION}-${SPARK_VERSION}.jar" -o ${SPARK_HOME}/jars/spark-token-provider-kafka-${KAFKA_VERSION}_${SCALA_VERSION}-${SPARK_VERSION}.jar && \
     curl -fsSL "https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/${KAFKA_CLIENTS_VERSION}/kafka-clients-${KAFKA_CLIENTS_VERSION}.jar" -o ${SPARK_HOME}/jars/kafka-clients-${KAFKA_CLIENTS_VERSION}.jar && \
-    curl -fsSL "https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/${COMMONS_POOL2_VERSION}/commons-pool2-${COMMONS_POOL2_VERSION}.jar" -o ${SPARK_HOME}/jars/commons-pool2-${COMMONS_POOL2_VERSION}.jar
-
+    curl -fsSL "https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/${COMMONS_POOL2_VERSION}/commons-pool2-${COMMONS_POOL2_VERSION}.jar" -o ${SPARK_HOME}/jars/commons-pool2-${COMMONS_POOL2_VERSION}.jar && \
+    curl -fsSL "https://repo1.maven.org/maven2/software/amazon/s3tables/s3-tables-catalog-for-iceberg-runtime/${S3_TABLES_VERSION}/s3-tables-catalog-for-iceberg-runtime-${S3_TABLES_VERSION}.jar" -o ${SPARK_HOME}/jars/s3-tables-catalog-for-iceberg-runtime-${S3_TABLES_VERSION}.jar
 
 ##############################################
 # STAGE 2 — Spark Runtime
